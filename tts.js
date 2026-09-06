@@ -23,7 +23,7 @@ window.TTS = (() => {
   const BAD_VOICE_PATTERNS = [/\bdavid\b/i, /\bzira\b/i, /\bhazel\b/i, /desktop/i, /espeak/i, /festival/i];
 
   const get = () => project;
-  const defaultPauseDuration = () => { try { const value=Number(JSON.parse(localStorage.getItem('dictator_settings') || '{}').defaultPauseDuration); return Number.isFinite(value) ? value : .8; } catch { return .8; } };
+  const defaultPauseDuration = () => { const value=Number(window.DictateI18n?.getSettings?.().defaultPauseDuration); return Number.isFinite(value) ? value : .8; };
   const languageKey = language => String(language || 'en').toLowerCase().split('-')[0];
   const localeScore = (voice, language) => {
     const target = String(language || 'en').toLowerCase();
@@ -62,13 +62,11 @@ window.TTS = (() => {
       .map(item => item.voice);
   }
 
-  function savedVoice() {
-    try { return JSON.parse(localStorage.getItem('dictator_settings') || '{}').voiceURI || ''; } catch { return ''; }
-  }
+  function savedVoice() { return window.DictateI18n?.getSettings?.().voiceURI || ''; }
 
   function selectVoice(voiceURI) {
     try {
-      const settings = JSON.parse(localStorage.getItem('dictator_settings') || '{}');
+      const settings = window.DictateI18n?.getSettings?.() || {};
       if (voiceURI) settings.voiceURI = voiceURI;
       else delete settings.voiceURI;
       localStorage.setItem('dictator_settings', JSON.stringify(settings));

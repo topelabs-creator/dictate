@@ -32,7 +32,7 @@ Use a cache-busting query after deployment:
 - [x] Confirm the deployed home page returns HTTP 200.
 - [x] Confirm the deployed home page has the expected canonical and eight hreflang links.
 - [ ] Redeploy the current source, then repeat the localized article check.
-- [ ] Publish the current shell versions (`ui.js?v=31`, `router.js?v=23`) and localized loader version (`index.html?v=31`).
+- [ ] Publish the current shell versions (`ui.js?v=32`, `router.js?v=24`) and localized loader version (`index.html?v=32`).
 - [ ] Confirm deployed localized static entry pages return HTTP 200 with current metadata.
 - [ ] Confirm deployed `/DICTATOR/` asset paths resolve.
 - [ ] Confirm deployed sitemap and robots reference only the active GitHub Pages host.

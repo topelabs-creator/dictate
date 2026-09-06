@@ -10,6 +10,7 @@ function normalizeProject(project) {
   const groups = Array.isArray(project?.groups) && project.groups.length ? project.groups : createGroups(tokens, wordsPerGroup, structure);
   return {
     ...project,
+    deletedAt: Number(project?.deletedAt) || null,
     rawText,
     wordCount: Number(project?.wordCount) || tokens.length,
     tokens,
@@ -70,7 +71,7 @@ function requestPromise(request) { return new Promise((resolve, reject) => { req
 function transactionPromise(transaction) { return new Promise((resolve, reject) => { transaction.oncomplete = () => resolve(); transaction.onerror = () => reject(transaction.error); transaction.onabort = () => reject(transaction.error || new Error('Transaction aborted')); }); }
 async function createProject(projectData) {
   const db = await openDB(); const transaction = db.transaction(DB_CONFIG.store, 'readwrite'); const store = transaction.objectStore(DB_CONFIG.store);
-  const count = await requestPromise(store.count()); if (count >= 20) throw new Error('STORAGE_FULL');
+  const records = await requestPromise(store.getAll()); const count = records.filter(project => !project.deletedAt).length; if (count >= 20) throw new Error('STORAGE_FULL');
   const now = Date.now();
   const project = normalizeProject({ id: crypto.randomUUID(), ...projectData, createdAt: now, updatedAt: now });
   store.add(compactProject(project));
@@ -90,11 +91,13 @@ async function updateProject(id, updates) {
   await transactionPromise(transaction);
   return updated;
 }
-async function deleteProject(id) { const db = await openDB(); const transaction = db.transaction(DB_CONFIG.store, 'readwrite'); transaction.objectStore(DB_CONFIG.store).delete(id); await transactionPromise(transaction); }
+async function deleteProject(id) { const existing = await getProject(id); if (!existing) throw new Error('PROJECT_NOT_FOUND'); return updateProject(id, { deletedAt: Date.now() }); }
+async function restoreProject(id) { const existing = await getProject(id); if (!existing) throw new Error('PROJECT_NOT_FOUND'); return updateProject(id, { deletedAt: null }); }
+async function purgeProject(id) { const db = await openDB(); const transaction = db.transaction(DB_CONFIG.store, 'readwrite'); transaction.objectStore(DB_CONFIG.store).delete(id); await transactionPromise(transaction); }
 async function listProjects(limit = 20) {
   const db = await openDB();
   const values = await requestPromise(db.transaction(DB_CONFIG.store).objectStore(DB_CONFIG.store).getAll());
-  return values.map(normalizeProject).sort((a,b) => b.updatedAt - a.updatedAt).slice(0, limit);
+  return values.filter(project => !project.deletedAt).map(normalizeProject).sort((a,b) => b.updatedAt - a.updatedAt).slice(0, limit);
 }
 async function getProjectCount() { const db = await openDB(); return requestPromise(db.transaction(DB_CONFIG.store).objectStore(DB_CONFIG.store).count()); }
 async function exportProjects() {
@@ -107,12 +110,11 @@ async function importProjects(backup) {
   const db = await openDB();
   const transaction = db.transaction(DB_CONFIG.store, 'readwrite');
   const store = transaction.objectStore(DB_CONFIG.store);
-  const existingCount = await requestPromise(store.count());
+  const records = await requestPromise(store.getAll());
+  const existingCount = records.filter(project => !project.deletedAt).length;
   const projects = backup.projects.map(normalizeProject).filter(project => project.id && project.rawText);
   if (existingCount + projects.length > 20) throw new Error('STORAGE_FULL');
   projects.forEach(project => store.put(compactProject(project)));
   await transactionPromise(transaction);
   return projects.length;
 }
-async function getVoiceModel(key) { const db = await openDB(); return requestPromise(db.transaction(DB_CONFIG.voices).objectStore(DB_CONFIG.voices).get(key)); }
-async function saveVoiceModel(model) { const db = await openDB(); const transaction = db.transaction(DB_CONFIG.voices, 'readwrite'); transaction.objectStore(DB_CONFIG.voices).put(model); await transactionPromise(transaction); return model; }
