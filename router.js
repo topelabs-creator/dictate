@@ -153,7 +153,8 @@ window.Router = (() => {
   // Firebase Hosting / Google Cloud Run use clean URL rewrites — no hash routing needed
   const isFirebase = location.hostname.endsWith('.web.app') || location.hostname.endsWith('.firebaseapp.com') || location.hostname.endsWith('.run.app');
   const USE_HASH = isLocalHost || isGitHubPages;
-  const BASE_PATH = isLocalHost ? '' : (isGitHubPages ? '/DICTATOR' : '');
+  const repoSlug = isGitHubPages ? (location.pathname.split('/').filter(Boolean)[0] || 'DICTATOR') : '';
+  const BASE_PATH = isLocalHost ? '' : (isGitHubPages ? `/${repoSlug}` : '');
   function localeFromLocation() {
     const queryLocale = new URLSearchParams(location.search).get('lang')?.toLowerCase();
     if (ROUTER_LANGUAGES.includes(queryLocale)) return queryLocale;

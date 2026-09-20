@@ -7,14 +7,14 @@
   <meta name="description" content="DICTATE is a private browser-based text-to-speech tool for notes, PDFs, and study material.">
   <script>
     (() => {
+      const isGitHubPages = location.hostname === 'github.io' || location.hostname.endsWith('.github.io');
+      const segments = location.pathname.split('/').filter(Boolean);
+      const base = isGitHubPages && segments.length > 0 ? `/${segments[0]}` : '';
       const path = location.pathname.replace(/\/+$/, '');
-      const base = '/DICTATOR';
-      const clean = path.startsWith(base) ? path.slice(base.length) || '/' : path;
+      const clean = base && path.startsWith(base) ? path.slice(base.length) || '/' : path;
       const dest = clean === '/' ? '/' : clean;
       sessionStorage.setItem('dictator_pending_route', dest);
-      const target = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
-        ? `/#${dest}`
-        : `${base}/#${dest}`;
+      const target = base ? `${base}/#${dest}` : `/#${dest}`;
       location.replace(target || '/');
     })();
   </script>
