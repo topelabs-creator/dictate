@@ -187,9 +187,21 @@
       document.querySelector('#menu-toggle').addEventListener('click', () => openPanel(pageMenu));
       document.querySelector('#settings-toggle').addEventListener('click', () => openPanel(settingsPanel));
       document.querySelector('#scrim').addEventListener('click', () => openPanel(null));
-      document.querySelector('#home-link').addEventListener('click', () => { window.location.href = '/'; });
+            const _gh = location.hostname.endsWith('.github.io');
+      const _r = _gh ? (location.pathname.split('/').filter(Boolean)[0] || '') : (location.pathname.startsWith('/DICTATOR/') ? 'DICTATOR' : '');
+      const base = _r ? `/${_r}/` : '/';
+      const isHashHost = _gh || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      function toAppUrl(route) {
+        const clean = (route || '').replace(/^\/+/, '');
+        if (!clean) return base;
+        return isHashHost ? `${base}#/${clean}` : `${base}${clean}`;
+      }
+      document.querySelector('#home-link').addEventListener('click', () => { window.location.href = toAppUrl(''); });
       document.querySelectorAll('[data-close]').forEach((button) => button.addEventListener('click', () => openPanel(null)));
-      document.querySelectorAll('[data-route]').forEach((button) => { button.addEventListener('click', () => { const route = button.getAttribute('data-route'); if (route) window.location.href = route; }); });
+      document.querySelectorAll('[data-route]').forEach((button) => button.addEventListener('click', () => {
+        const route = button.getAttribute('data-route');
+        if (route !== null) window.location.href = toAppUrl(route);
+      }));
       document.querySelectorAll('.faq-question').forEach((button) => { button.addEventListener('click', () => { button.parentElement.classList.toggle('open'); }); });
       if (uiSelect) uiSelect.addEventListener('change', saveSettings);
       if (defaultSelect) defaultSelect.addEventListener('change', saveSettings);

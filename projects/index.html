@@ -9,7 +9,7 @@
   <link rel="canonical" href="https://hustler512.github.io/DICTATOR/projects">
   <script>
     (() => {
-      const base = location.pathname.startsWith('/DICTATOR/') ? '/DICTATOR/' : '/';
+      const _gh = location.hostname.endsWith('.github.io'); const _r = _gh ? (location.pathname.split('/').filter(Boolean)[0] || '') : (location.pathname.startsWith('/DICTATOR/') ? 'DICTATOR' : ''); const base = _r ? '/' + _r + '/' : '/';
       const targetHash = `${base}#/projects`;
       fetch(`${base}index.html?v=32`)
         .then(r => r.text())

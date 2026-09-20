@@ -187,7 +187,7 @@
       document.querySelector('#theme-toggle').addEventListener('click', () => { const current = root.dataset.theme === 'dark' ? 'light' : 'dark'; setTheme(current); });
       document.querySelector('#scrim').addEventListener('click', () => openPanel(null));
       document.querySelectorAll('[data-close]').forEach((button) => button.addEventListener('click', () => openPanel(null)));
-      const base = location.pathname.startsWith('/DICTATOR/') ? '/DICTATOR/' : '/';
+      const _gh = location.hostname.endsWith('.github.io'); const _r = _gh ? (location.pathname.split('/').filter(Boolean)[0] || '') : (location.pathname.startsWith('/DICTATOR/') ? 'DICTATOR' : ''); const base = _r ? '/' + _r + '/' : '/';
       const isHashHost = location.hostname.endsWith('.github.io') || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
       function toAppUrl(route) {
         const clean = (route || '').replace(/^\/+/, '');
