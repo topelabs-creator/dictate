@@ -20,8 +20,8 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://hustler512.github.io/DICTATOR/blogs">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="icon" type="image/png" href="/favicon.png">
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="icon" type="image/png" href="../favicon.png">
+  <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
   <header class="app-header">
@@ -76,25 +76,25 @@
           <article>
             <h2 data-i18n="card1Title">Browser Text to Speech Reader</h2>
             <p data-i18n="card1Text">Use a browser text-to-speech reader to turn notes, articles, and study material into spoken audio.</p>
-            <a class="button primary-link" href="/blogs/browser-text-to-speech-reader" data-i18n="readArticle">Read article</a>
+            <a class="button primary-link" href="browser-text-to-speech-reader" data-i18n="readArticle">Read article</a>
           </article>
           <article>
             <h2 data-i18n="card2Title">Read PDF Aloud Online</h2>
             <p data-i18n="card2Text">Listen to PDF content aloud in your browser with a private, focused study workflow.</p>
-            <a class="button primary-link" href="/blogs/read-pdf-aloud-online" data-i18n="readArticle">Read article</a>
+            <a class="button primary-link" href="read-pdf-aloud-online" data-i18n="readArticle">Read article</a>
           </article>
           <article>
             <h2 data-i18n="card3Title">Read Notes Aloud in Browser</h2>
             <p data-i18n="card3Text">Turn notes, summaries, and revision material into listening sessions that improve retention.</p>
-            <a class="button primary-link" href="/blogs/read-notes-aloud" data-i18n="readArticle">Read article</a>
+            <a class="button primary-link" href="read-notes-aloud" data-i18n="readArticle">Read article</a>
           </article>
           <article>
             <h2 data-i18n="card4Title">Student Dictation Tool</h2>
             <p data-i18n="card4Text">Use a student-friendly dictation flow to revise by ear and reduce screen fatigue.</p>
-            <a class="button primary-link" href="/blogs/student-dictation-tool" data-i18n="readArticle">Read article</a>
+            <a class="button primary-link" href="student-dictation-tool" data-i18n="readArticle">Read article</a>
           </article>
         </div>
-        <p style="margin-top:25px;"><a href="/" class="button primary-link" data-i18n="tryTool">Try the tool</a></p>
+        <p style="margin-top:25px;"><a href="../" class="button primary-link" data-i18n="tryTool">Try the tool</a></p>
       </div>
     </div>
   </main>
@@ -187,8 +187,20 @@
       document.querySelector('#theme-toggle').addEventListener('click', () => { const current = root.dataset.theme === 'dark' ? 'light' : 'dark'; setTheme(current); });
       document.querySelector('#scrim').addEventListener('click', () => openPanel(null));
       document.querySelectorAll('[data-close]').forEach((button) => button.addEventListener('click', () => openPanel(null)));
-      document.querySelectorAll('[data-route]').forEach((button) => { button.addEventListener('click', () => { const route = button.getAttribute('data-route'); if (route) window.location.href = route; }); });
-      document.querySelector('#home-link').addEventListener('click', () => { window.location.href = '/'; });
+      const base = location.pathname.startsWith('/DICTATOR/') ? '/DICTATOR/' : '/';
+      const isHashHost = location.hostname.endsWith('.github.io') || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      function toAppUrl(route) {
+        const clean = (route || '').replace(/^\/+/, '');
+        if (!clean) return base;
+        return isHashHost ? `${base}#/${clean}` : `${base}${clean}`;
+      }
+      document.querySelectorAll('[data-route]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const route = button.getAttribute('data-route');
+          if (route !== null) window.location.href = toAppUrl(route);
+        });
+      });
+      document.querySelector('#home-link').addEventListener('click', () => { window.location.href = toAppUrl(''); });
       if (uiSelect) uiSelect.addEventListener('change', saveSettings);
       if (defaultSelect) defaultSelect.addEventListener('change', saveSettings);
       if (wordsSelect) wordsSelect.addEventListener('change', saveSettings);

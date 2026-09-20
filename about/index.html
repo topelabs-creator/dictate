@@ -7,12 +7,21 @@
   <meta name="description" content="Learn how DICTATE helps students and learners turn notes into spoken audio, listen back privately, and repeat key ideas with a browser-based dictation workflow.">
   <link rel="canonical" href="https://hustler512.github.io/DICTATOR/about">
   <script>
-    window.addEventListener('DOMContentLoaded', () => {
-      const target = '/about';
-      if (window.location.pathname !== target) {
-        window.location.replace(target);
-      }
-    });
+    (() => {
+      const base = location.pathname.startsWith('/DICTATOR/') ? '/DICTATOR/' : '/';
+      const targetHash = `${base}#/about`;
+      fetch(`${base}index.html?v=32`)
+        .then(r => r.text())
+        .then(html => {
+          history.replaceState({}, '', targetHash);
+          document.open();
+          document.write(html.replace('<head>', `<head><base href="${base}">`));
+          document.close();
+        })
+        .catch(() => {
+          location.replace(targetHash);
+        });
+    })();
   </script>
   <style>
     body { font-family: Arial, sans-serif; background:#0f1720; color:#e8eef5; margin:0; padding:40px 20px; }

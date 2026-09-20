@@ -42,7 +42,6 @@ DICTATOR.WEB/
 ├── tts.js                     # Browser speech and fallback audio controller
 ├── ui.js                      # Rendering, translations, forms, and reader UI
 ├── voice-lab.js               # Voice selection and preview enhancement
-├── piper-worker.js            # Worker support for the local voice path
 ├── fix_routes.py              # One-off maintenance helper for route listeners
 ├── blogs/                     # SPA-compatible blog entry page
 ├── browser-text-to-speech-reader/
@@ -257,7 +256,8 @@ The translation registry covers navigation, settings, Home SEO copy, project man
 `db.js` uses IndexedDB database `DictatorDB` version 2.
 
 - `projects` stores saved project records and progress.
-- `voiceModels` is available for cached voice-model records.
+- Legacy project `image` fields remain readable for backward compatibility, but the current UI does not create new image data.
+- The legacy `voiceModels` IndexedDB store remains in place for existing databases; no active runtime code writes to it.
 - Saved projects are normalized when read so older records receive current defaults and derived groups.
 - The application allows up to 20 saved projects.
 - The built-in demo is generated in memory and does not consume the project limit.
@@ -302,7 +302,7 @@ For the most private and offline-friendly workflow, use TXT input with an instal
 
 ## Validation Checklist
 
-Because the project has no build step or automated test runner, validate changes in a browser and with syntax checks:
+The project has no build step, but it includes a Node test runner. Validate changes with the automated suite, syntax checks, and a browser smoke test:
 
 ```bash
 node --check app.js
@@ -312,6 +312,7 @@ node --check router.js
 node --check tts.js
 node --check ui.js
 node --check voice-lab.js
+npm.cmd test
 ```
 
 Then verify:

@@ -150,6 +150,8 @@ const ROUTE_META = {
 window.Router = (() => {
   const isLocalHost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
   const isGitHubPages = location.hostname === 'github.io' || location.hostname.endsWith('.github.io');
+  // Firebase Hosting / Google Cloud Run use clean URL rewrites — no hash routing needed
+  const isFirebase = location.hostname.endsWith('.web.app') || location.hostname.endsWith('.firebaseapp.com') || location.hostname.endsWith('.run.app');
   const USE_HASH = isLocalHost || isGitHubPages;
   const BASE_PATH = isLocalHost ? '' : (isGitHubPages ? '/DICTATOR' : '');
   function localeFromLocation() {

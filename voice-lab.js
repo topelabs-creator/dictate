@@ -30,7 +30,7 @@
   const copy = () => labels[window.DictateI18n?.resolveUiLanguage?.(getSettings().uiLanguage || 'auto') || 'en'] || labels.en;
   const text = (template, lang) => template.replace('{lang}', lang.toUpperCase());
 
-  const getSettings = () => { try { return JSON.parse(localStorage.getItem(settingsKey) || '{}'); } catch { return {}; } };
+  const getSettings = () => window.DictateI18n?.getSettings?.() || {};
   const escape = value => String(value ?? '').replace(/[&<>\"]/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;' }[character]));
   const languageOptions = selected => languages.map(([code, name]) => `<option value="${code}" ${code === selected ? 'selected' : ''}>${name} (${code.toUpperCase()})</option>`).join('');
 

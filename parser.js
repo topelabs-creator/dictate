@@ -14,9 +14,9 @@ function detectStructure(lines) {
     let type = 'normal'; let text = line;
     if (line.startsWith('## ')) { type = 'subtitle'; text = line.slice(3).trim(); }
     else if (line.startsWith('# ')) { type = 'title'; text = line.slice(2).trim(); }
-    else if ((line.length <= 10 && nextEmpty) || (/^[^a-záéíóúàâêôãõç0-9]+$/.test(line) && line.length <= 50)) type = 'title';
+    else if ((line.length <= 10 && nextEmpty) || (/\p{Lu}/u.test(line) && !/\p{Ll}/u.test(line) && line.length <= 50)) type = 'title';
     else if (line.endsWith(':') && nextEmpty) type = 'subtitle';
-    markers.push({ index: tokenIndex, type, text }); tokenIndex += tokenize(text).length;
+    markers.push({ index: tokenIndex, type, text }); tokenIndex += tokenize(rawLine).length;
   });
   return markers;
 }

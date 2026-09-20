@@ -1,5 +1,14 @@
 window.UI = (() => {
-  const MAX_WORDS = Infinity;
+  const MAX_WORDS = 5000;
+  const TEXT_LIMIT_MESSAGES = {
+    en: `Please keep your text within ${MAX_WORDS.toLocaleString()} words.`,
+    pt: `Mantenha o texto dentro de ${MAX_WORDS.toLocaleString('pt-BR')} palavras.`,
+    fr: `Limitez votre texte à ${MAX_WORDS.toLocaleString('fr-FR')} mots.`,
+    es: `Mantén el texto dentro de ${MAX_WORDS.toLocaleString('es-ES')} palabras.`,
+    de: `Begrenze den Text auf ${MAX_WORDS.toLocaleString('de-DE')} Wörter.`,
+    it: `Mantieni il testo entro ${MAX_WORDS.toLocaleString('it-IT')} parole.`,
+    ru: `Ограничьте текст ${MAX_WORDS.toLocaleString('ru-RU')} словами.`
+  };
   const UI_TEXT = {
     en: {
       'home.hero.edit': 'Edit saved project',
@@ -53,9 +62,11 @@ window.UI = (() => {
       'project.emptyText': 'Start with a note from the Home page.',
       'project.emptyAction': 'Create your first project',
       'project.storageUsed': '{count} of 20 projects used',
-      'project.deleteConfirm': 'Delete this project? You can undo it for 10 seconds.',
+      'project.deleteConfirm': 'Delete this project? This cannot be undone.',
       'project.renamed': 'Project renamed.',
       'project.deleted': 'Project deleted.',
+      'project.undo': 'Undo',
+      'project.restored': 'Project restored.',
       'project.saved': 'Project updated.',
       'project.created': 'Project created.',
       'project.fileLoaded': '{file} loaded.',
@@ -157,9 +168,11 @@ window.UI = (() => {
       'project.emptyText': 'Comece com uma nota na página inicial.',
       'project.emptyAction': 'Crie seu primeiro projeto',
       'project.storageUsed': '{count} de 20 projetos usados',
-      'project.deleteConfirm': 'Excluir este projeto? Você pode desfazer isso em 10 segundos.',
+      'project.deleteConfirm': 'Excluir este projeto? Esta ação não pode ser desfeita.',
       'project.renamed': 'Projeto renomeado.',
       'project.deleted': 'Projeto excluído.',
+      'project.undo': 'Desfazer',
+      'project.restored': 'Projeto restaurado.',
       'project.saved': 'Projeto atualizado.',
       'project.created': 'Projeto criado.',
       'project.fileLoaded': '{file} carregado.',
@@ -252,12 +265,8 @@ window.UI = (() => {
   };
 
   function getUiLanguage() {
-    try {
-      const settings = JSON.parse(localStorage.getItem('dictator_settings') || '{}');
-      return window.DictateI18n?.resolveUiLanguage ? window.DictateI18n.resolveUiLanguage(settings.uiLanguage || 'auto') : 'en';
-    } catch {
-      return 'en';
-    }
+    const settings = window.DictateI18n?.getSettings?.() || {};
+    return window.DictateI18n?.resolveUiLanguage ? window.DictateI18n.resolveUiLanguage(settings.uiLanguage || 'auto') : 'en';
   }
 
   function t(key, fallback = key) {
@@ -273,15 +282,10 @@ window.UI = (() => {
 
   const app = () => document.querySelector('#app');
   const safe = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[char]));
-  const settings = () => { try { return { defaultDictationLang:'auto', defaultWordsPerGroup:6, defaultRepetitions:2, defaultSpeed:.9, defaultPauseDuration:.8, ...JSON.parse(localStorage.getItem('dictator_settings') || '{}') }; } catch { return { defaultDictationLang:'auto', defaultWordsPerGroup:6, defaultRepetitions:2, defaultSpeed:.9, defaultPauseDuration:.8 }; } };
+  const settings = () => window.DictateI18n?.getSettings?.() || { defaultDictationLang:'auto', defaultWordsPerGroup:6, defaultRepetitions:2, defaultSpeed:.9, defaultPauseDuration:.8 };
 
-  let currentProjectImageData = null;
+  let activeReaderGroup = null;
   let activeInputSource = { type:'paste', name:null };
-  function clearProjectImageSelection() {
-    currentProjectImageData = null;
-    const preview = document.querySelector('.project-image-preview');
-    if (preview) preview.remove();
-  }
   function demoProject() {
     const demoText = {
       en: `# The Clockmaker's Last Light
@@ -482,8 +486,10 @@ Mira fece un respiro, poi un altro. "Va bene", disse. "Scopriamo cosa ricorda l'
     const structure = detectStructure(rawText.split(/\r?\n/));
     return { id:'demo-stress-project', name:title, nameLower:title.toLowerCase(), rawText, wordCount:tokens.length, structure, tokens, groups:createGroups(tokens, 6, structure), sourceType:'demo', sourceName, progress:{ currentGroupIndex:0, currentRepeat:1, isPlaying:false, lastWordSpoken:'' }, config:{ wordsPerGroup:6, repetitions:2, speed:.9, language:language === 'auto' ? 'en' : language, theme:document.documentElement.dataset.theme }, isDemo:true, createdAt:0, updatedAt:0 };
   }
-  function toast(message, type = 'info') { const node = document.createElement('div'); node.className = `toast ${type}`; node.textContent = message; document.querySelector('#toast-region').append(node); setTimeout(() => node.remove(), 3500); }
-  function countText(input, counter, start) { const count = input.value.trim() ? input.value.trim().split(/\s+/).length : 0; counter.textContent = `${count.toLocaleString()} ${t('home.counter','words')}`; counter.className = 'counter'; start.disabled = !count; return count; }
+  function toast(message, type = 'info', action = null) { const node = document.createElement('div'); node.className = `toast ${type}`; const text = document.createElement('span'); text.textContent = message; node.append(text); if (action) { const button = document.createElement('button'); button.className = 'toast-action'; button.type = 'button'; button.textContent = action.label; button.onclick = () => { action.run(); node.remove(); }; node.append(button); } document.querySelector('#toast-region').append(node); const timeout = action?.duration || 3500; setTimeout(() => node.remove(), timeout); return node; }
+  function textWordCount(value) { const text = String(value || '').trim(); return text ? text.split(/\s+/).length : 0; }
+  function textLimitMessage() { return TEXT_LIMIT_MESSAGES[getUiLanguage()] || TEXT_LIMIT_MESSAGES.en; }
+  function countText(input, counter, start) { const count = textWordCount(input.value); const overLimit = count > MAX_WORDS; counter.textContent = `${count.toLocaleString()} / ${MAX_WORDS.toLocaleString()} ${t('home.counter','words')}`; counter.className = `counter${overLimit ? ' danger' : count >= MAX_WORDS * .9 ? ' warning' : ''}`; counter.title = overLimit ? textLimitMessage() : ''; start.disabled = !count || overLimit; return count; }
   const BLOG_ARTICLE_COPY = {
     en: {
       'browser-text-to-speech-reader': {
@@ -610,40 +616,25 @@ Mira fece un respiro, poi un altro. "Va bene", disse. "Scopriamo cosa ricorda l'
     const pack = BLOG_ARTICLE_COPY[language] || BLOG_ARTICLE_COPY.en;
     return pack[routeKey] || pack['browser-text-to-speech-reader'];
   }
-  function sourceMarkup() { return `<label class="file-action" id="browse" for="file-input"><span class="file-icon">□</span><span>${t('home.browse','Click to browse')}</span><small>${t('home.fileType','TXT, PDF, or DOCX')}</small></label><label class="file-action" id="drop-label"><span class="file-icon">↓</span><span>${t('home.drop','Drop a file here')}</span><small>${t('home.drag','or drag and drop')}</small></label><input id="file-input" type="file" accept=".txt,.TXT,.pdf,.PDF,.docx,.DOCX,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>`; }
-  async function loadFile(file, input, source) { if (!file) return; const extension = String(file.name || '').split('.').pop().toLowerCase(); try { let result; if (extension === 'txt' || file.type === 'text/plain') result = await extractTXT(file); else if (extension === 'pdf' || file.type === 'application/pdf') result = await extractPDF(await file.arrayBuffer()); else if (extension === 'docx' || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') result = await extractDOCX(await file.arrayBuffer()); else throw new Error(`Unsupported file type: ${file.name || 'unknown file'}`); const text = String(result?.text || '').replace(/^\uFEFF/, '').trim(); if (!text) throw new Error(`The file "${file.name}" contains no readable text.`); input.value = text; source.type = extension; source.name = file.name; input.dispatchEvent(new Event('input', { bubbles:true })); toast(formatText('project.fileLoaded', { file: file.name }), 'success'); } catch (error) { toast(error.message || 'Could not read that file.', 'danger'); } }
+  function sourceMarkup() { return `<label class="file-action" id="browse" for="file-input"><span class="file-icon">□</span><span>${t('home.browse','Click to browse')}</span><small>${t('home.fileType','TXT, PDF, or DOCX')}</small></label><label class="file-action" id="drop-label"><span class="file-icon">↓</span><span>${t('home.drop','Drop a file here')}</span><small>${t('home.drag','or drag and drop')}</small></label><input id="file-input" type="file" accept=".txt,.pdf,.docx,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>`; }
+  async function loadFile(file, input, source) { if (!file) return; const extension = String(file.name || '').split('.').pop().toLowerCase(); try { let result; if (extension === 'txt' || file.type === 'text/plain') result = await extractTXT(file); else if (extension === 'pdf' || file.type === 'application/pdf') result = await extractPDF(await file.arrayBuffer()); else if (extension === 'docx' || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') result = await extractDOCX(await file.arrayBuffer()); else throw new Error(`Unsupported file type: ${file.name || 'unknown file'}`); const text = String(result?.text || '').replace(/^\uFEFF/, '').trim(); if (!text) throw new Error(`The file "${file.name}" contains no readable text.`); if (textWordCount(text) > MAX_WORDS) { toast(textLimitMessage(), 'danger'); return; } input.value = text; source.type = extension; source.name = file.name; input.dispatchEvent(new Event('input', { bubbles:true })); toast(formatText('project.fileLoaded', { file: file.name }), 'success'); } catch (error) { toast(error.message || 'Could not read that file.', 'danger'); } }
   async function renderHome(editId = null) {
     const projects = await listProjects(5); const editingProject = editId ? await getProject(editId) : null;
     if (editId && !editingProject) return Router.navigate('projects');
-    currentProjectImageData = editingProject?.image || null;
-    app().innerHTML = `<div class="page home-page"><div class="hero"><div class="eyebrow">${editingProject ? t('home.hero.edit','Edit saved project') : t('home.hero.new','Listen. Repeat. Learn.')}</div><h1>${editingProject ? t('home.h1.edit','Update your notes.') : t('home.h1.new','Dictate your notes.')}</h1><p>${editingProject ? t('home.p.edit','Save changes to this listening session.') : t('home.p.new','Turn your notes into a focused listening session.')}</p></div><div class="home-grid"><aside class="panel recent-panel"><div class="panel-title"><span>${t('home.recent','Recent projects')}</span><span class="accent-text">${projects.length} / 20</span></div>${projects.length ? projects.map(project => `<button class="mini-project" data-open="${safe(project.id)}"><strong>${safe(project.name)}</strong><small>${t('reader.group','Group')} ${Math.min(project.progress.currentGroupIndex + 1, project.groups.length)} / ${project.groups.length}</small></button>`).join('') : `<p class="empty-note">${t('home.empty','Your saved sessions will appear here.')}</p>`}<button class="button full-button" id="view-projects">${t('home.viewAll','View all projects')}</button></aside><section class="input-section"><div class="input-box" id="input-box"><div class="textarea-wrap"><textarea class="text-input" id="text-input" maxlength="100000" placeholder="${t('home.placeholder','Write or paste your text here...')}"></textarea><div class="counter" id="counter">0 / 5,000 ${t('home.counter','words')}</div></div><div class="file-zone">${sourceMarkup()}</div></div><button class="start-button" id="start" disabled>${editingProject ? t('home.save','Save changes') : t('home.start','Start to dictate')} <span>→</span></button><p class="privacy-note">${t('home.privacy','Your notes stay on this device.')}</p></section></div><section class="seo-content"><div class="seo-intro"><p class="eyebrow">${t('home.seo.eyebrow','Private browser learning')}</p><h2>${t('home.seo.title','Turn study notes, PDFs, and scripts into spoken audio.')}</h2><p>${t('home.seo.body','DICTATE helps you listen to notes instead of reading every line. Use it for revision, language learning, reading practice, and quiet focus sessions without sending your files to a server.')}</p></div><div class="seo-links"><a href="./browser-text-to-speech-reader" data-route="browser-text-to-speech-reader">${t('home.seo.link.reader','Browser text to speech reader')}</a><a href="./read-pdf-aloud-online" data-route="read-pdf-aloud-online">${t('home.seo.link.pdf','Read PDF aloud online')}</a><a href="./read-notes-aloud" data-route="read-notes-aloud">${t('home.seo.link.notes','Read notes aloud in browser')}</a><a href="./student-dictation-tool" data-route="student-dictation-tool">${t('home.seo.link.student','Student dictation tool')}</a></div><div class="seo-grid"><article class="seo-card"><h3>${t('home.seo.studyTitle','Study faster')}</h3><p>${t('home.seo.studyText','Listen to revision notes, essays, and summaries in short blocks so you can absorb more without screen fatigue.')}</p></article><article class="seo-card"><h3>${t('home.seo.pdfTitle','Read PDFs aloud')}</h3><p>${t('home.seo.pdfText','Upload a PDF or DOCX and turn complex reading material into speech you can follow while doing other tasks.')}</p></article><article class="seo-card"><h3>${t('home.seo.privateTitle','Stay private')}</h3><p>${t('home.seo.privateText','Everything works in the browser with local project storage, making it a practical option for quiet, private learning.')}</p></article></div><div class="seo-faq"><h3>${t('home.seo.questionsTitle','Common questions')}</h3><div class="faq-item"><button class="faq-question">${t('home.seo.question1','Why use a browser text to speech reader?')}</button><div class="faq-answer"><p>${t('home.seo.answer1','It helps you review notes by ear, reduce eye strain, and repeat difficult chapters or concepts in a focused, manageable rhythm.')}</p></div></div><div class="faq-item"><button class="faq-question">${t('home.seo.question2','Can I read documents aloud in my browser?')}</button><div class="faq-answer"><p>${t('home.seo.answer2','Yes. DICTATE supports reading pasted text, browser-local documents, and PDF content directly in the browser.')}</p></div></div><div class="faq-item"><button class="faq-question">${t('home.seo.question3','Is this good for students?')}</button><div class="faq-answer"><p>${t('home.seo.answer3','Yes. It is useful for revision, reading practice, language learning, and quieter study sessions with less screen fatigue.')}</p></div></div></div></section></div>`;
+    app().innerHTML = `<div class="page home-page"><div class="hero"><div class="eyebrow">${editingProject ? t('home.hero.edit','Edit saved project') : t('home.hero.new','Listen. Repeat. Learn.')}</div><h1>${editingProject ? t('home.h1.edit','Update your notes.') : t('home.h1.new','Dictate your notes.')}</h1><p>${editingProject ? t('home.p.edit','Save changes to this listening session.') : t('home.p.new','Turn your notes into a focused listening session.')}</p></div><div class="home-grid"><aside class="panel recent-panel"><div class="panel-title"><span>${t('home.recent','Recent projects')}</span><span class="accent-text">${projects.length} / 20</span></div>${projects.length ? projects.map(project => `<button class="mini-project" data-open="${safe(project.id)}"><strong>${safe(project.name)}</strong><small>${t('reader.group','Group')} ${Math.min(project.progress.currentGroupIndex + 1, project.groups.length)} / ${project.groups.length}</small></button>`).join('') : `<p class="empty-note">${t('home.empty','Your saved sessions will appear here.')}</p>`}<button class="button full-button" id="view-projects">${t('home.viewAll','View all projects')}</button></aside><section class="input-section"><div class="input-box" id="input-box"><div class="textarea-wrap"><textarea class="text-input" id="text-input"  placeholder="${t('home.placeholder','Write or paste your text here...')}"></textarea><div class="counter" id="counter">0 / ${MAX_WORDS.toLocaleString()} ${t('home.counter','words')}</div></div><div class="file-zone">${sourceMarkup()}</div></div><button class="start-button" id="start" disabled>${editingProject ? t('home.save','Save changes') : t('home.start','Start to dictate')} <span>→</span></button><p class="privacy-note">${t('home.privacy','Your notes stay on this device.')}</p></section></div><section class="seo-content"><div class="seo-intro"><p class="eyebrow">${t('home.seo.eyebrow','Private browser learning')}</p><h2>${t('home.seo.title','Turn study notes, PDFs, and scripts into spoken audio.')}</h2><p>${t('home.seo.body','DICTATE helps you listen to notes instead of reading every line. Use it for revision, language learning, reading practice, and quiet focus sessions without sending your files to a server.')}</p></div><div class="seo-links"><a href="./browser-text-to-speech-reader" data-route="browser-text-to-speech-reader">${t('home.seo.link.reader','Browser text to speech reader')}</a><a href="./read-pdf-aloud-online" data-route="read-pdf-aloud-online">${t('home.seo.link.pdf','Read PDF aloud online')}</a><a href="./read-notes-aloud" data-route="read-notes-aloud">${t('home.seo.link.notes','Read notes aloud in browser')}</a><a href="./student-dictation-tool" data-route="student-dictation-tool">${t('home.seo.link.student','Student dictation tool')}</a></div><div class="seo-grid"><article class="seo-card"><h3>${t('home.seo.studyTitle','Study faster')}</h3><p>${t('home.seo.studyText','Listen to revision notes, essays, and summaries in short blocks so you can absorb more without screen fatigue.')}</p></article><article class="seo-card"><h3>${t('home.seo.pdfTitle','Read PDFs aloud')}</h3><p>${t('home.seo.pdfText','Upload a PDF or DOCX and turn complex reading material into speech you can follow while doing other tasks.')}</p></article><article class="seo-card"><h3>${t('home.seo.privateTitle','Stay private')}</h3><p>${t('home.seo.privateText','Everything works in the browser with local project storage, making it a practical option for quiet, private learning.')}</p></article></div><div class="seo-faq"><h3>${t('home.seo.questionsTitle','Common questions')}</h3><div class="faq-item"><button class="faq-question">${t('home.seo.question1','Why use a browser text to speech reader?')}</button><div class="faq-answer"><p>${t('home.seo.answer1','It helps you review notes by ear, reduce eye strain, and repeat difficult chapters or concepts in a focused, manageable rhythm.')}</p></div></div><div class="faq-item"><button class="faq-question">${t('home.seo.question2','Can I read documents aloud in my browser?')}</button><div class="faq-answer"><p>${t('home.seo.answer2','Yes. DICTATE supports reading pasted text, browser-local documents, and PDF content directly in the browser.')}</p></div></div><div class="faq-item"><button class="faq-question">${t('home.seo.question3','Is this good for students?')}</button><div class="faq-answer"><p>${t('home.seo.answer3','Yes. It is useful for revision, reading practice, language learning, and quieter study sessions with less screen fatigue.')}</p></div></div></div></section></div>`;
     bindHome(editingProject);
-    document.querySelectorAll('.faq-question').forEach(button => {
-      const sync = () => {
-        const open = button.parentElement.classList.contains('open');
-        button.setAttribute('aria-expanded', String(open));
-      };
-      button.setAttribute('aria-expanded', String(button.parentElement.classList.contains('open')));
-      button.onclick = () => {
-        const open = button.parentElement.classList.toggle('open');
-        button.setAttribute('aria-expanded', String(open));
-      };
-      button.addEventListener('keydown', event => { if (event.key === 'Escape') { button.parentElement.classList.remove('open'); sync(); } });
-    });
+    document.querySelectorAll('.faq-question').forEach(button => button.onclick = () => button.parentElement.classList.toggle('open'));
   }
   function bindHome(editingProject = null) {
     const input = document.querySelector('#text-input'); const counter = document.querySelector('#counter'); const start = document.querySelector('#start'); const box = document.querySelector('#input-box'); const source = { type:'paste', name:null };
     activeInputSource = source;
     let draftWriteTimer = null;
     let saveInFlight = false;
-    const draftLimit = 200000;
-    input.removeAttribute('maxlength');
     try { const draft = JSON.parse(localStorage.getItem('dictator_draft') || 'null'); if (draft?.content && (!editingProject || draft.editingProjectId === editingProject.id)) input.value = draft.content; else if (editingProject) input.value = editingProject.rawText; } catch { if (editingProject) input.value = editingProject.rawText; }
     const update = () => {
       const count = countText(input, counter, start);
-      if (input.value.length > draftLimit) {
+      if (count > MAX_WORDS) {
         if (draftWriteTimer) clearTimeout(draftWriteTimer);
-        try { localStorage.removeItem('dictator_draft'); } catch {}
         return count;
       }
       if (draftWriteTimer) clearTimeout(draftWriteTimer);
@@ -675,7 +666,8 @@ Mira fece un respiro, poi un altro. "Va bene", disse. "Scopriamo cosa ricorda l'
     start.onclick = async () => {
       if (saveInFlight) return;
       const tokens = tokenize(input.value);
-      if (!tokens.length || tokens.length > MAX_WORDS) return;
+      if (!tokens.length) return;
+      if (tokens.length > MAX_WORDS) { toast(textLimitMessage(), 'danger'); return; }
       saveInFlight = true;
       start.disabled = true;
       start.dataset.busy = 'true';
@@ -689,7 +681,6 @@ Mira fece un respiro, poi un altro. "Va bene", disse. "Scopriamo cosa ricorda l'
           wordCount: tokens.length,
           sourceType: source.type,
           sourceName: source.name || editingProject?.sourceName || null,
-          image: currentProjectImageData || null,
           progress: { currentGroupIndex: 0, currentRepeat: 1, isPlaying: false, lastWordSpoken: '' }
         };
         const payload = {
@@ -709,7 +700,6 @@ Mira fece un respiro, poi un altro. "Va bene", disse. "Scopriamo cosa ricorda l'
           ...payload
         });
         localStorage.removeItem('dictator_draft');
-        clearProjectImageSelection();
         toast(editingProject ? t('project.saved','Project updated.') : t('project.created','Project created.'), 'success');
         Router.navigate(`project/${project.id}`);
       } catch (error) {
@@ -758,8 +748,9 @@ Mira fece un respiro, poi un altro. "Va bene", disse. "Scopriamo cosa ricorda l'
   }
   async function renderProjects() { const projects = await listProjects(); const demo = demoProject(); app().innerHTML = `<div class="page projects-page"><div class="page-heading"><div><div class="eyebrow">${t('project.yourLibrary','Your library')}</div><h1>${t('project.title','Your projects.')}</h1><p>${t('project.subtitle','Manage your listening sessions. Maximum 20 projects.')}</p></div><button class="button" id="new-project">${t('project.new','+ New project')}</button></div><div class="project-list"><article class="project-card demo-project-card"><div class="project-info"><h3>${safe(demo.name)}</h3><p>${formatText('project.demoInfo', { count: demo.groups.length })}</p></div><div class="card-actions"><button class="button primary" data-open="${demo.id}">${t('project.openDemo','Open demo')}</button></div></article>${projects.length ? projects.map(project => `<article class="project-card"><div class="project-info"><h3>${safe(project.name)}</h3>${project.image ? `<img class="project-image-thumb" src="${safe(project.image)}" alt="Project preview" />` : ''}<p>${projectMeta(project)}${project.sourceName ? ` · ${safe(project.sourceName)}` : ''}</p></div><div class="card-actions"><button class="button primary" data-open="${safe(project.id)}">${t('project.open','Open')}</button><button class="button" data-rename="${safe(project.id)}">${t('project.rename','Rename')}</button><button class="button danger" data-delete="${safe(project.id)}">${t('project.delete','Delete')}</button></div></article>`).join('') : `<div class="empty-state"><h2>${t('project.emptyTitle','No projects yet.')}</h2><p>${t('project.emptyText','Start with a note from the Home page.')}</p><button class="button primary" id="empty-home">${t('project.emptyAction','Create your first project')}</button></div>`}</div><div class="storage"><p>${formatText('project.storageUsed', { count: projects.length })}</p><div class="progress"><span style="width:${projects.length / 20 * 100}%"></span></div></div></div>`;
     document.querySelector('#new-project')?.addEventListener('click', () => Router.navigate('')); document.querySelector('#empty-home')?.addEventListener('click', () => Router.navigate('')); document.querySelectorAll('[data-open]').forEach(node => node.onclick = () => Router.navigate(`project/${node.dataset.open}`));
-    document.querySelectorAll('[data-delete]').forEach(node => node.onclick = async () => { if (!confirm(t('project.deleteConfirm','Delete this project? This cannot be undone.'))) return; await deleteProject(node.dataset.delete); toast(t('project.deleted','Project deleted.'), 'success'); renderProjects(); });
+    document.querySelectorAll('[data-delete]').forEach(node => node.onclick = async () => { if (!confirm(t('project.deleteConfirm','Delete this project? This cannot be undone.'))) return; const projectId = node.dataset.delete; await deleteProject(projectId); renderProjects(); let finalized = false; const finalize = async () => { if (finalized) return; finalized = true; await purgeProject(projectId); }; toast(t('project.deleted','Project deleted.'), 'success', { label:t('project.undo','Undo'), duration:10000, run:async () => { if (finalized) return; finalized = true; await restoreProject(projectId); toast(t('project.restored','Project restored.'), 'success'); renderProjects(); } }); setTimeout(finalize, 10000); });
     document.querySelectorAll('[data-rename]').forEach(node => node.onclick = async () => { const project = await getProject(node.dataset.rename); const name = prompt('Project name', project.name); if (!name?.trim()) return; await updateProject(project.id, { name:name.trim(), nameLower:name.trim().toLowerCase() }); toast(t('project.renamed','Project renamed.'), 'success'); renderProjects(); });
+    mountProjectBackupControls();
   }
   function readerContent(project) {
     const paragraphBlocks = splitIntoParagraphs(project.rawText || '');
@@ -779,7 +770,8 @@ Mira fece un respiro, poi un altro. "Va bene", disse. "Scopriamo cosa ricorda l'
       const chunk = groups.slice(cursor, cursor + expectedCount);
       cursor += chunk.length;
       if (!chunk.length) {
-        return `<p class="reader-paragraph"><span class="word-group" data-index="0">${safe(paragraphText)}</span></p>`;
+        const fallbackIndex = Math.min(cursor, Math.max(0, groups.length - 1));
+        return `<p class="reader-paragraph"><span class="word-group" data-index="${fallbackIndex}">${safe(paragraphText)}</span></p>`;
       }
       const content = chunk.map(group => {
         if (group.hasTitle || group.hasSubtitle) return `<${group.hasTitle ? 'h2' : 'h3'} class="reader-${group.hasTitle ? 'title' : 'subtitle'}">${safe(group.rawText)}</${group.hasTitle ? 'h2' : 'h3'}>`;
@@ -793,10 +785,10 @@ Mira fece un respiro, poi un altro. "Va bene", disse. "Scopriamo cosa ricorda l'
   function bindSpeedControl(id, onChange, minimum = .25, maximum = 2, fallback = 1) { const range = document.querySelector(`#${id}-range`); const value = document.querySelector(`#${id}-value`); if (!range || !value) return; const update = next => { const numeric=Number(next); const clamped = Math.max(minimum, Math.min(maximum, Number.isFinite(numeric) ? numeric : fallback)); range.value = clamped.toFixed(id === 'reader-pause' ? 1 : 2); value.value = clamped.toFixed(id === 'reader-pause' ? 1 : 2); onChange(clamped); }; range.oninput = event => update(event.target.value); value.oninput = event => update(event.target.value); }
   function mountPauseFooter() { const footer=document.querySelector('.dictation-footer'); const active=TTS.get?.(); if (!footer || !active || footer.querySelector('#reader-pause-range')) return; const control=document.createElement('span'); control.innerHTML=pauseControl(active.config.pauseDuration ?? settings().defaultPauseDuration); footer.insertBefore(control.firstElementChild, footer.querySelector('#restart')); bindSpeedControl('reader-pause', value => TTS.configChange('pauseDuration', value), 0, 3.5, .8); }
   function bindReaderGroups(project) { document.querySelectorAll('.word-group').forEach(node => node.onclick = () => TTS.jump(Number(node.dataset.index))); }
-  function refreshReader(project) { const reader = document.querySelector('#reader'); if (reader) reader.innerHTML = readerContent(project); bindReaderGroups(project); updateReaderState(project, 'paused'); }
-  async function renderProject(id) { const project = id === 'demo-stress-project' ? demoProject() : await getProject(id); if (!project) return Router.navigate(''); TTS.load(project); app().innerHTML = `<div class="reader-page"><div class="reader-header"><button class="back-link" id="back-projects">${t('reader.back','← Back to projects')}</button><div><div class="eyebrow">${project.isDemo ? t('reader.demo','Built-in test project') : t('reader.view','Reader view')}</div><h1>${safe(project.name)}</h1></div>${project.isDemo ? '' : `<button class="button" id="edit-text">${t('reader.edit','Edit text')}</button>`}</div><article class="reader-shell" id="reader">${readerContent(project)}</article></div><div class="dictation-footer"><div class="playback"><button class="icon-button" id="previous" aria-label="Previous group">←</button><button class="play-button" id="play" aria-label="Play">▶</button><button class="icon-button" id="next" aria-label="Next group">→</button></div><label>${t('reader.words','Words')} <select id="reader-words">${Array.from({length:10},(_,i)=>`<option value="${i+1}" ${project.config.wordsPerGroup === i+1 ? 'selected' : ''}>${i+1}</option>`).join('')}</select></label><label>${t('reader.reps','Reps')} <select id="reader-reps">${Array.from({length:10},(_,i)=>`<option value="${i+1}" ${project.config.repetitions === i+1 ? 'selected' : ''}>${i+1}</option>`).join('')}</select></label>${speedControl('reader-speed', project.config.speed)}<label>${t('reader.lang','Lang')} <select id="reader-lang">${['en','pt','es','fr','de','it','ru'].map(value=>`<option value="${value}" ${project.config.language === value ? 'selected' : ''}>${value.toUpperCase()}</option>`).join('')}</select></label><button class="button" id="restart">${t('reader.restart','Restart')}</button><span class="status" id="status"></span></div>`;
-    document.querySelector('#back-projects').onclick = () => Router.navigate('projects'); document.querySelector('#edit-text')?.addEventListener('click', () => Router.navigate(`edit/${project.id}`)); document.querySelector('#play').onclick = () => TTS.toggle(); document.querySelector('#previous').onclick = () => TTS.previous(); document.querySelector('#next').onclick = () => TTS.next(); document.querySelector('#restart').onclick = () => TTS.restart(); bindReaderGroups(project); [['reader-words','wordsPerGroup'],['reader-reps','repetitions'],['reader-lang','language']].forEach(([id,key]) => document.querySelector(`#${id}`).onchange = event => TTS.configChange(key, event.target.value)); bindSpeedControl('reader-speed', value => TTS.configChange('speed', value)); bindSpeedControl('reader-pause', value => TTS.configChange('pauseDuration', value)); updateReaderState(project, 'idle'); }
-  function updateReaderState(project, state, voiceName = null) { document.querySelectorAll('.word-group').forEach(node => node.classList.toggle('active', Number(node.dataset.index) === project.progress.currentGroupIndex)); const status = document.querySelector('#status'); const play = document.querySelector('#play'); const active = ['loading','playing','between_groups','between_repeats'].includes(state); if (status) status.textContent = state === 'loading' ? `${t('reader.loading','Loading browser voice')}${voiceName ? ` · ${voiceName}` : '…'}` : state === 'finished' ? t('reader.finished','Complete · press Restart to begin again') : `${t('reader.group','Group')} ${Math.min(project.progress.currentGroupIndex + 1, project.groups.length)} / ${project.groups.length} · ${t('reader.repeat','Repeat')} ${project.progress.currentRepeat} / ${project.config.repetitions}${voiceName ? ` · ${voiceName}` : ''}`; if (play) { play.textContent = state === 'playing' ? 'Ⅱ' : active ? '■' : '▶'; play.setAttribute('aria-label', active ? t('reader.pause','Pause') : t('reader.play','Play')); } }
+  function refreshReader(project) { const reader = document.querySelector('#reader'); if (reader) reader.innerHTML = readerContent(project); activeReaderGroup = null; bindReaderGroups(project); updateReaderState(project, 'paused'); }
+  async function renderProject(id) { const project = id === 'demo-stress-project' ? demoProject() : await getProject(id); if (!project) return Router.navigate(''); TTS.load(project); activeReaderGroup = null; app().innerHTML = `<div class="reader-page"><div class="reader-header"><button class="back-link" id="back-projects">${t('reader.back','← Back to projects')}</button><div><div class="eyebrow">${project.isDemo ? t('reader.demo','Built-in test project') : t('reader.view','Reader view')}</div><h1>${safe(project.name)}</h1></div>${project.isDemo ? '' : `<button class="button" id="edit-text">${t('reader.edit','Edit text')}</button>`}</div><article class="reader-shell" id="reader">${readerContent(project)}</article></div><div class="dictation-footer"><div class="playback"><button class="icon-button" id="previous" aria-label="Previous group">←</button><button class="play-button" id="play" aria-label="Play">▶</button><button class="icon-button" id="next" aria-label="Next group">→</button></div><label>${t('reader.words','Words')} <select id="reader-words">${Array.from({length:10},(_,i)=>`<option value="${i+1}" ${project.config.wordsPerGroup === i+1 ? 'selected' : ''}>${i+1}</option>`).join('')}</select></label><label>${t('reader.reps','Reps')} <select id="reader-reps">${Array.from({length:10},(_,i)=>`<option value="${i+1}" ${project.config.repetitions === i+1 ? 'selected' : ''}>${i+1}</option>`).join('')}</select></label>${speedControl('reader-speed', project.config.speed)}<label>${t('reader.lang','Lang')} <select id="reader-lang">${['en','pt','es','fr','de','it','ru'].map(value=>`<option value="${value}" ${project.config.language === value ? 'selected' : ''}>${value.toUpperCase()}</option>`).join('')}</select></label><button class="button" id="restart">${t('reader.restart','Restart')}</button><span class="status" id="status"></span></div>`;
+    document.querySelector('#back-projects').onclick = () => Router.navigate('projects'); document.querySelector('#edit-text')?.addEventListener('click', () => Router.navigate(`edit/${project.id}`)); document.querySelector('#play').onclick = () => TTS.toggle(); document.querySelector('#previous').onclick = () => TTS.previous(); document.querySelector('#next').onclick = () => TTS.next(); document.querySelector('#restart').onclick = () => TTS.restart(); bindReaderGroups(project); [['reader-words','wordsPerGroup'],['reader-reps','repetitions'],['reader-lang','language']].forEach(([id,key]) => document.querySelector(`#${id}`).onchange = event => TTS.configChange(key, event.target.value)); bindSpeedControl('reader-speed', value => TTS.configChange('speed', value)); bindSpeedControl('reader-pause', value => TTS.configChange('pauseDuration', value)); updateReaderState(project, 'idle'); mountPauseFooter(); }
+  function updateReaderState(project, state, voiceName = null) { const nextReaderGroup = document.querySelector(`.word-group[data-index="${project.progress.currentGroupIndex + 1}"]`); if (activeReaderGroup !== nextReaderGroup) { activeReaderGroup?.classList.remove('active'); nextReaderGroup?.classList.add('active'); activeReaderGroup = nextReaderGroup || null; } const status = document.querySelector('#status'); const play = document.querySelector('#play'); const active = ['loading','playing','between_groups','between_repeats'].includes(state); if (status) status.textContent = state === 'loading' ? `${t('reader.loading','Loading browser voice')}${voiceName ? ` · ${voiceName}` : '…'}` : state === 'finished' ? t('reader.finished','Complete · press Restart to begin again') : `${t('reader.group','Group')} ${Math.min(project.progress.currentGroupIndex + 1, project.groups.length)} / ${project.groups.length} · ${t('reader.repeat','Repeat')} ${project.progress.currentRepeat} / ${project.config.repetitions}${voiceName ? ` · ${voiceName}` : ''}`; if (play) { play.textContent = state === 'playing' ? 'Ⅱ' : active ? '■' : '▶'; play.setAttribute('aria-label', active ? t('reader.pause','Pause') : t('reader.play','Play')); } }
   function renderBlogs() {
     const language = getUiLanguage();
     const copy = BLOG_ARTICLE_COPY[language] || BLOG_ARTICLE_COPY.en;
@@ -826,28 +818,11 @@ Mira fece un respiro, poi un altro. "Va bene", disse. "Scopriamo cosa ricorda l'
       ru: ['Вставьте заметки, загрузите PDF или добавьте текст из документа.', 'Выберите размер групп, темп, повторы и язык.', 'Слушайте текст и эффективнее повторяйте материал в сфокусированных сессиях.']
     }[getUiLanguage()] || ['Paste notes, upload a PDF, or drop in text from a document.', 'Choose the reading group size, pace, repetition, and language.', 'Listen to the text aloud and revise more effectively in focused listening sessions.'];
     app().innerHTML = `<div class="static-content"><div class="eyebrow">DICTATE</div><h1>${localizedTitle}</h1><p>${localizedIntro}</p><section><h2>${copy.why || 'Why people use it'}</h2><ul>${localizedBullets.map(point => `<li>${point}</li>`).join('')}</ul></section><section><h2>${copy.how || 'How it works'}</h2><ol>${localizedHow.map(step => `<li>${step}</li>`).join('')}</ol></section><section><h2>${copy.faqTitle || 'Frequently asked questions'}</h2>${localizedFaqs.map(([question, answer]) => `<div class="faq-item"><button class="faq-question">${question}</button><div class="faq-answer"><p>${answer}</p></div></div>`).join('')}</section><section><h2>${copy.startTitle || 'Start reading today'}</h2><p>${localizedStart}</p><p><a href="${Router.url('')}" class="button primary-link">${copy.tryTool || 'Try the tool'}</a> <a href="${Router.url('blogs')}" class="button primary-link">${copy.backBlogs || 'Back to BLOGS'}</a></p></section></div>`;
-    document.querySelectorAll('.faq-question').forEach(button => {
-      const sync = () => {
-        const open = button.parentElement.classList.contains('open');
-        button.setAttribute('aria-expanded', String(open));
-      };
-      button.setAttribute('aria-expanded', String(button.parentElement.classList.contains('open')));
-      button.onclick = () => {
-        const open = button.parentElement.classList.toggle('open');
-        button.setAttribute('aria-expanded', String(open));
-      };
-      button.addEventListener('keydown', event => { if (event.key === 'Escape') { button.parentElement.classList.remove('open'); sync(); } });
-    });
+    document.querySelectorAll('.faq-question').forEach(button => button.onclick = () => button.parentElement.classList.toggle('open'));
   }
   function staticPage(title, body) { app().innerHTML = `<div class="static-content"><div class="eyebrow">DICTATE</div><h1>${title}</h1>${body}</div>`; }
   function renderAbout() { staticPage(t('about.title','A calmer way to learn.'), `<p>${t('about.body','DICTATE turns notes, essays, PDFs, and study material into speech so you can listen, repeat, and retain more. It is built for students, language learners, and anyone who wants to dictate notes to a computer and review them by ear in a private browser workflow.')}</p><section><h2>${t('about.section1','Designed for repetition')}</h2><p>${t('about.section1p','Small groups, adjustable pace, and a visible reading highlight help you stay with the sentence instead of racing past it.')}</p></section><section><h2>${t('about.section2','Private by default')}</h2><p>${t('about.section2p','Your saved projects live in this browser using local storage and IndexedDB. DICTATE does not upload your notes to an application server.')}</p></section>`); }
-  function renderHowToUse() { staticPage(t('how.title','How to use DICTATE.'), `<p>${t('how.body','Start on Home, paste a note or load a TXT, PDF, or DOCX file, then create a project.')}</p><section><h2>${t('how.build','Build a session')}</h2><ol><li>${t('how.step1','Add your text.')}</li><li>${t('how.step2','Choose your default group size, repetitions, speed, and language in Settings.')}</li><li>${t('how.step3','Start the session and follow the highlighted groups.')}</li></ol></section><section><h2>${t('how.questions','Questions')}</h2><div class="faq-item"><button class="faq-question" aria-expanded="false">${t('how.groupQuestion','What does a group mean?')}</button><div class="faq-answer"><p>${t('how.groupAnswer','A group is the number of words DICTATE speaks together before moving on.')}</p></div></div><div class="faq-item"><button class="faq-question" aria-expanded="false">${t('how.settingsQuestion','Can I change settings while reading?')}</button><div class="faq-answer"><p>${t('how.settingsAnswer','Yes. Reader controls save changes to the current project and reset grouping when necessary.')}</p></div></div></section>`); document.querySelectorAll('.faq-question').forEach(button => {
-      const sync = () => { const open = button.parentElement.classList.contains('open'); button.setAttribute('aria-expanded', String(open)); };
-      button.setAttribute('aria-expanded', String(button.parentElement.classList.contains('open')));
-      button.onclick = () => { const open = button.parentElement.classList.toggle('open'); button.setAttribute('aria-expanded', String(open)); };
-      button.addEventListener('keydown', event => { if (event.key === 'Escape') { button.parentElement.classList.remove('open'); sync(); } });
-    }); }
+  function renderHowToUse() { staticPage(t('how.title','How to use DICTATE.'), `<p>${t('how.body','Start on Home, paste a note or load a TXT, PDF, or DOCX file, then create a project.')}</p><section><h2>${t('how.build','Build a session')}</h2><ol><li>${t('how.step1','Add your text.')}</li><li>${t('how.step2','Choose your default group size, repetitions, speed, and language in Settings.')}</li><li>${t('how.step3','Start the session and follow the highlighted groups.')}</li></ol></section><section><h2>${t('how.questions','Questions')}</h2><div class="faq-item"><button class="faq-question">${t('how.groupQuestion','What does a group mean?')}</button><div class="faq-answer"><p>${t('how.groupAnswer','A group is the number of words DICTATE speaks together before moving on.')}</p></div></div><div class="faq-item"><button class="faq-question">${t('how.settingsQuestion','Can I change settings while reading?')}</button><div class="faq-answer"><p>${t('how.settingsAnswer','Yes. Reader controls save changes to the current project and reset grouping when necessary.')}</p></div></div></section>`); document.querySelectorAll('.faq-question').forEach(button => button.onclick = () => button.parentElement.classList.toggle('open')); }
   function renderPrivacy() { staticPage(t('privacy.title','Privacy policy.'), `<p>${t('privacy.body','DICTATE is designed to keep your notes on your device. Projects are stored in this browser and speech is produced by the browser Web Speech API.')}</p><section><h2>${t('privacy.whatLeaves','What leaves your device?')}</h2><p>${t('privacy.whatLeavesBody','Nothing is sent to a DICTATE application server. Optional PDF, DOCX, and language-detection libraries may be loaded from their public CDNs when you use those features.')}</p></section><section><h2>${t('privacy.removing','Removing your data')}</h2><p>${t('privacy.removingBody','Delete individual projects from the Projects page, or clear this site’s browser storage to remove all local data.')}</p></section>`); }
-  new MutationObserver(() => { mountPauseFooter(); mountProjectBackupControls(); }).observe(document.querySelector('#app'), { childList:true, subtree:true });
   return { renderHome, renderProjects, renderProject, renderAbout, renderHowToUse, renderPrivacy, renderBlogs, renderIntentPage, getBlogCopy, toast, updateReaderState, refreshReader };
 })();
