@@ -1,6 +1,6 @@
 const ROUTER_UI = window.UI;
 const ROUTER_LANGUAGES = ['en', 'pt', 'fr', 'es', 'de', 'it', 'ru'];
-const ROUTER_PUBLIC_ORIGIN = 'https://hustler512.github.io/DICTATOR';
+const ROUTER_PUBLIC_ORIGIN = 'https://dictate.rakimrakim41.workers.dev';
 const ROUTER_LOCALE_META = {
   en: {},
   pt: {

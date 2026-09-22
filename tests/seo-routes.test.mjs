@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const origin = 'https://hustler512.github.io/DICTATOR';
+const origin = 'https://dictate.rakimrakim41.workers.dev';
 const locales = ['en', 'pt', 'fr', 'es', 'de', 'it', 'ru'];
 const articles = ['browser-text-to-speech-reader', 'read-pdf-aloud-online', 'read-notes-aloud', 'student-dictation-tool'];
 const publicRoutes = ['', 'blogs', ...articles.map(slug => `blogs/${slug}`)];
@@ -47,8 +47,7 @@ test('sitemap and robots use the active canonical host', async () => {
   const sitemap = await fs.readFile(path.join(root, 'sitemap.xml'), 'utf8');
   const robots = await fs.readFile(path.join(root, 'robots.txt'), 'utf8');
   assert.doesNotMatch(sitemap, /dictator\.app/i);
-  assert.doesNotMatch(robots, /dictator\.app/i);
-  assert.match(robots, /Sitemap:\s*https:\/\/hustler512\.github\.io\/DICTATOR\/sitemap\.xml/);
+  assert.match(robots, new RegExp(`Sitemap:\\s*${origin.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\/sitemap\\.xml`));
   assert.doesNotMatch(sitemap, /\/projects(?:<|\/)/i);
 });
 

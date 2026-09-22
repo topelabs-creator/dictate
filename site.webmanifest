@@ -1,0 +1,17 @@
+{
+  "name": "DICTATE | Turn Notes into Speech",
+  "short_name": "DICTATE",
+  "description": "Private browser text-to-speech reader for notes, PDFs, and study material.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0f1720",
+  "theme_color": "#0f1720",
+  "icons": [
+    {
+      "src": "favicon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

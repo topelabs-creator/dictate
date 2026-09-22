@@ -3,7 +3,9 @@
 .vscode/
 tests/
 DICTATOR.WEB/
-*.md
+PHASE1-TRANSLATION-INVENTORY.md
+PHASE5-FINAL-VERIFICATION.md
+README.md
 package.json
 package-lock.json
 wrangler.json
