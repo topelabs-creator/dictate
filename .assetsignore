@@ -1,4 +1,5 @@
 .git/
+.wrangler/
 .vscode/
 tests/
 DICTATOR.WEB/
@@ -7,3 +8,5 @@ package.json
 package-lock.json
 wrangler.json
 .assetsignore
+.gitignore
+firebase.json
