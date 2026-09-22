@@ -1,0 +1,9 @@
+.git/
+.vscode/
+tests/
+DICTATOR.WEB/
+*.md
+package.json
+package-lock.json
+wrangler.json
+.assetsignore
