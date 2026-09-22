@@ -42,10 +42,17 @@
     .cta { display:inline-block; margin-top:12px; background:#72d5f4; color:#07151d; padding:10px 18px; border-radius:999px; text-decoration:none; font-weight:700; }
     .faq { margin-top:24px; }
     .faq-item { border-top:1px solid #203241; padding-top:14px; margin-top:14px; }
+  
+    .ad-container { width:100%; min-height:90px; display:flex; align-items:center; justify-content:center; margin:0 auto 20px; padding:10px 16px; border:1px solid #203241; border-radius:12px; background:#111d29; color:#8899a6; font-size:10px; box-sizing:border-box; }
+    .ad-label { color:#8899a6; font:10px 'Trebuchet MS', Arial, sans-serif; letter-spacing:.08em; text-transform:uppercase; }
   </style>
 </head>
 <body>
   <div class="wrap">
+    <div id="global-ad" class="ad-container" aria-label="Advertisement" role="complementary">
+      <span class="ad-label">Advertisement</span>
+      <!-- Insert asynchronous ad provider code inside this reserved slot. -->
+    </div>
     <div class="eyebrow">DICTATE</div>
     <h1>Read Notes Aloud in Browser</h1>
     <div class="card">
@@ -78,6 +85,10 @@
           <p>Class notes, key ideas, summaries, reading material, and practice text all work well in this workflow.</p>
         </div>
       </div>
+    </div>
+    <div class="ad-container ad-bottom" aria-label="Advertisement" role="complementary" style="margin-top:30px;">
+      <span class="ad-label">Advertisement</span>
+      <!-- Insert asynchronous ad provider code inside this reserved slot. -->
     </div>
   </div>
 </body>
