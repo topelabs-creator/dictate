@@ -87,14 +87,14 @@ test('localized loaders use the active index version', async () => {
   assert.match(app, /Голосовая лаборатория/);
 });
 
-test('text input uses one enforced word limit', async () => {
+test('text input supports unlimited words and dynamically displays word count', async () => {
   const ui = await fs.readFile(path.join(root, 'ui.js'), 'utf8');
-  assert.match(ui, /const MAX_WORDS = 5000;/);
-  assert.doesNotMatch(ui, /const MAX_WORDS = Infinity/);
+  assert.doesNotMatch(ui, /const MAX_WORDS = 5000;/);
   assert.doesNotMatch(ui, /maxlength="100000"/);
-  assert.match(ui, /if \(count > MAX_WORDS\)/);
-  assert.match(ui, /if \(count > MAX_WORDS\)[\s\S]*?return count;/);
-  assert.match(ui, /textWordCount\(text\) > MAX_WORDS/);
+  assert.doesNotMatch(ui, /tokens\.length > MAX_WORDS/);
+  assert.doesNotMatch(ui, /textWordCount\(text\) > MAX_WORDS/);
+  assert.match(ui, /count\.toLocaleString\(\)/);
+  assert.match(ui, /t\('home\.counter',\s*'words'\)/);
 });
 
 test('reader rendering keeps fallback navigation and active state efficient', async () => {
