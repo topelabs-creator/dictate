@@ -80,7 +80,7 @@
     tools.id = 'reader-voice-tools';
     tools.dataset.language = language;
     tools.className = 'footer-voice-tools';
-    tools.innerHTML = `<label class="footer-voice">Voice <select id="reader-voice">${result.options}</select></label><button class="button" id="reader-voice-preview" type="button">Preview</button>`;
+    const ui = copy(); tools.innerHTML = `<label class="footer-voice">${ui[3]} <select id="reader-voice">${result.options}</select></label><button class="button" id="reader-voice-preview" type="button">${ui[4]}</button>`;
     const restart = footer.querySelector('#restart');
     footer.insertBefore(tools, restart);
     tools.querySelector('#reader-voice').onchange = event => TTS.selectVoice(event.target.value);
