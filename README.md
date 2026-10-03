@@ -56,6 +56,8 @@ DICTATOR.WEB/
 
 The route directories contain static entry pages for crawlers, direct links, and hosts that serve directory indexes. The main application shell remains `index.html`, and `router.js` renders the interactive route views.
 
+For a file-by-file ownership map, change procedures, locale-add checklist, and validation commands, see [PROJECT-MAP.md](PROJECT-MAP.md).
+
 ## Run Locally
 
 No dependencies need to be installed for the normal application.
