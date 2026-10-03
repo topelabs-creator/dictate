@@ -34,14 +34,15 @@
   const escape = value => String(value ?? '').replace(/[&<>\"]/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;' }[character]));
   const languageOptions = selected => languages.map(([code, name]) => `<option value="${code}" ${code === selected ? 'selected' : ''}>${name} (${code.toUpperCase()})</option>`).join('');
 
-  const fallbackNames = { en: 'Online voice (Web API)', pt: 'Voz online (API Web)', es: 'Voz en línea (API web)', fr: 'Voix en ligne (API Web)', de: 'Online-Stimme (Web-API)', it: 'Voce online (API Web)', ru: 'Онлайн-голос (веб-API)' };
+  const fallbackNames = { en: 'Online voice (sends text to Google TTS)', pt: 'Voz online (envia texto ao Google TTS)', es: 'Voz en línea (envía texto a Google TTS)', fr: 'Voix en ligne (envoie le texte à Google TTS)', de: 'Online-Stimme (sendet Text an Google TTS)', it: 'Voce online (invia il testo a Google TTS)', ru: 'Онлайн-голос (отправляет текст в Google TTS)' };
 
   function voiceOptions(language) {
     const voices = TTS.listVoices(language);
     const selected = TTS.savedVoice();
-    const fallbackOption = `<option value="${TTS.fallbackVoiceURI}" ${selected === TTS.fallbackVoiceURI || !voices.length ? 'selected' : ''}>${fallbackNames[language] || fallbackNames.en} - ${language.toUpperCase()}</option>`;
+    const fallbackOption = `<option value="${TTS.fallbackVoiceURI}" ${selected === TTS.fallbackVoiceURI ? 'selected' : ''}>${fallbackNames[language] || fallbackNames.en} - ${language.toUpperCase()}</option>`;
     const deviceOptions = voices.map(voice => `<option value="${escape(voice.voiceURI)}" ${voice.voiceURI === selected ? 'selected' : ''}>${escape(voice.name)} - ${escape(voice.lang)}${voice.localService === false ? ' - online hint' : ' - device'}</option>`).join('');
-    return { voices, options: `${fallbackOption}${deviceOptions}` };
+    const prompt = selected ? '' : `<option value="" selected disabled>${language === 'pt' ? 'Selecione uma voz' : 'Choose a voice'}</option>`;
+    return { voices, options: `${prompt}${fallbackOption}${deviceOptions}` };
   }
 
   function render() {
@@ -66,7 +67,7 @@
     };
     languageSelect.onchange = updateVoices;
     voiceSelect.onchange = event => { TTS.selectVoice(event.target.value); status.textContent = copy()[8]; };
-    section.querySelector('#voice-preview').onclick = () => { const next = voiceOptions(languageSelect.value); const voice = next.voices.find(item => item.voiceURI === voiceSelect.value) || next.voices[0]; const played = voice ? TTS.previewVoice(voice, settings.defaultSpeed, previewText[languageSelect.value]) : TTS.previewLanguage(languageSelect.value, settings.defaultSpeed, previewText[languageSelect.value]); if (!played) status.textContent = text(copy()[9], languageSelect.value); };
+    section.querySelector('#voice-preview').onclick = () => { const next = voiceOptions(languageSelect.value); const choice = voiceSelect.value; const voice = choice === TTS.fallbackVoiceURI ? null : (next.voices.find(item => item.voiceURI === choice) || next.voices[0]); const played = voice ? TTS.previewVoice(voice, settings.defaultSpeed, previewText[languageSelect.value]) : TTS.previewLanguage(languageSelect.value, settings.defaultSpeed, previewText[languageSelect.value]); if (!played) status.textContent = text(copy()[9], languageSelect.value); };
     section.querySelector('#voice-refresh').onclick = () => { section.remove(); render(); };
   }
 

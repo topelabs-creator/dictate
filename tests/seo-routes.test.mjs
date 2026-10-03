@@ -88,17 +88,36 @@ test('app shell resolves root assets on nested project reloads', async () => {
 
 test('app shell uses the refreshed TTS fallback script version', async () => {
   const html = await fs.readFile(path.join(root, 'index.html'), 'utf8');
-  assert.match(html, /<script src="tts\.js\?v=25"><\/script>/);
-  assert.match(html, /<script src="voice-lab\.js\?v=15"><\/script>/);
+  assert.match(html, /<script src="tts\.js\?v=26"><\/script>/);
+    assert.match(html, /<script src="voice-lab\.js\?v=16"><\/script>/);
+  assert.match(html, /<script src="ui\.js\?v=37"><\/script>/);
+  assert.match(html, /<script src="app\.js\?v=27"><\/script>/);
   assert.match(html, /<script src="parser\.js\?v=24"><\/script>/);
 });
 
 test('voice selector exposes the online fallback even when no device voice exists', async () => {
   const voiceLab = await fs.readFile(path.join(root, 'voice-lab.js'), 'utf8');
   const tts = await fs.readFile(path.join(root, 'tts.js'), 'utf8');
-  assert.match(voiceLab, /pt: 'Voz online \(API Web\)'/);
+  assert.match(voiceLab, /pt: 'Voz online \(envia texto ao Google TTS\)'/);
   assert.match(voiceLab, /fallbackOption\}\$\{deviceOptions\}/);
   assert.match(tts, /preferredURI === FALLBACK_VOICE_URI \? null/);
+  assert.match(voiceLab, /const choice = voiceSelect\.value; const voice = choice === TTS\.fallbackVoiceURI \? null/);
+  assert.doesNotMatch(await fs.readFile(path.join(root, 'app.js'), 'utf8'), /DictateTTSFallback|fallbackTtsAudio/);
+});
+
+test('online TTS consent and privacy copy cover every supported UI language', async () => {
+  const ui = await fs.readFile(path.join(root, 'ui.js'), 'utf8');
+  const languages = ['en', 'pt', 'fr', 'es', 'de', 'it', 'ru'];
+  for (const language of languages) {
+    const start = ui.indexOf(`    ${language}: {`, ui.indexOf('const ONLINE_TTS_PRIVACY_TEXT'));
+    assert.notEqual(start, -1, `missing online TTS privacy copy for ${language}`);
+    const end = ui.indexOf('\n    }', start);
+    const localizedCopy = ui.slice(start, end === -1 ? undefined : end);
+    assert.match(localizedCopy, /reader\.onlineVoiceConsentRequired/);
+    assert.match(localizedCopy, /privacy\.body/);
+    assert.match(localizedCopy, /privacy\.whatLeavesBody/);
+    assert.match(localizedCopy, /Google Translate TTS/);
+  }
 });
 
 test('mobile reader reserves clearance for its dynamic fixed controls', async () => {

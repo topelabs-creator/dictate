@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-async function loadTTS({ voices: providedVoices, onAudioPlay, audioUrls = [] } = {}) {
+async function loadTTS({ voices: providedVoices, onAudioPlay, audioUrls = [], settings = {} } = {}) {
   const script = await fs.readFile(path.join(root, 'tts.js'), 'utf8');
   const voices = providedVoices || [
     { name: 'Samsung Portuguese', lang: 'pt_BR', localService: true },
@@ -18,12 +18,12 @@ async function loadTTS({ voices: providedVoices, onAudioPlay, audioUrls = [] } =
 
   const context = {
     window: {
-      DictateI18n: { getSettings: () => ({}) },
-      UI: { updateReaderState() {}, toast() {} },
+      DictateI18n: { getSettings: () => settings, t: key => key },
+      UI: { updateReaderState() {}, toast(message) { settings.lastToast = message; } },
       Router: { navigate() {} },
       speechSynthesis: { getVoices: () => voices, cancel() {}, addEventListener() {}, speaking: false, paused: false },
       localStorage: { setItem() {}, getItem() { return null; } },
-      Audio: function Audio() { return { play() { onAudioPlay?.(); audioUrls.push(this.src); setImmediate(() => this.onended?.()); return Promise.resolve(); }, pause() {}, onended: null, onerror: null }; },
+      Audio: function Audio(src = '') { return { src, play() { onAudioPlay?.(); audioUrls.push(this.src); setImmediate(() => this.onended?.()); return Promise.resolve(); }, pause() {}, onended: null, onerror: null }; },
       matchMedia: () => ({ matches: false }),
       navigator: { language: 'en-US' },
       performance: { now: () => 0 }
@@ -39,7 +39,7 @@ async function loadTTS({ voices: providedVoices, onAudioPlay, audioUrls = [] } =
     setInterval,
     clearInterval,
     speechSynthesis: { getVoices: () => voices, cancel() {}, addEventListener() {}, speaking: false, paused: false },
-    Audio: function Audio() { return { play() { onAudioPlay?.(); audioUrls.push(this.src); setImmediate(() => this.onended?.()); return Promise.resolve(); }, pause() {}, onended: null, onerror: null }; }
+    Audio: function Audio(src = '') { return { src, play() { onAudioPlay?.(); audioUrls.push(this.src); setImmediate(() => this.onended?.()); return Promise.resolve(); }, pause() {}, onended: null, onerror: null }; }
   };
 
   vm.runInNewContext(script, context);
@@ -58,10 +58,12 @@ test('tts normalizes locale tags and picks valid Android voice matches', async (
   assert.ok(TTS.listVoices('pt').some(voice => voice.lang === 'pt_BR' || voice.lang === 'pt'));
 });
 
-test('network fallback calls audio play during the initial user-triggered TTS play', async () => {
+test('missing local voice requires explicit online voice selection before network playback', async () => {
   let userActivation = false;
   let activationObservedByAudio = false;
-  const TTS = await loadTTS({ voices: [], onAudioPlay() { activationObservedByAudio = userActivation; } });
+  const audioUrls = [];
+  const settings = {};
+  const TTS = await loadTTS({ voices: [], audioUrls, settings, onAudioPlay() { activationObservedByAudio = userActivation; } });
   TTS.load({
     isDemo: true,
     config: { language: 'pt', speed: 0.9, repetitions: 1, pauseDuration: 0 },
@@ -71,7 +73,27 @@ test('network fallback calls audio play during the initial user-triggered TTS pl
   userActivation = true;
   TTS.play();
   userActivation = false;
+  assert.equal(activationObservedByAudio, false);
+  assert.equal(audioUrls.length, 0);
+  assert.equal(settings.lastToast, 'reader.onlineVoiceConsentRequired');
+
+  TTS.selectVoice(TTS.fallbackVoiceURI);
+  userActivation = true;
+  TTS.play();
+  userActivation = false;
   assert.equal(activationObservedByAudio, true);
+  assert.ok(audioUrls.length > 0);
+});
+
+test('online voice preview uses network audio even when device voices are available', async () => {
+  const audioUrls = [];
+  const TTS = await loadTTS({ audioUrls });
+  TTS.selectVoice(TTS.fallbackVoiceURI);
+  assert.equal(TTS.previewLanguage('pt', 0.9, 'Prévia online'), true);
+  assert.equal(audioUrls.length, 1);
+  const requestUrl = new URL(audioUrls[0], 'https://dictate.test');
+  assert.equal(requestUrl.searchParams.get('language'), 'pt');
+  assert.equal(requestUrl.searchParams.get('text'), 'Prévia online');
 });
 
 test('network fallback chunks unbroken text below the provider request limit', async () => {
@@ -83,6 +105,7 @@ test('network fallback chunks unbroken text below the provider request limit', a
     progress: { currentGroupIndex: 0, currentRepeat: 1, isPlaying: false },
     groups: [{ rawText: 'a'.repeat(450), hasTitle: false, hasSubtitle: false }]
   });
+  TTS.selectVoice(TTS.fallbackVoiceURI);
   TTS.play();
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(requestedUrls.length, 3);

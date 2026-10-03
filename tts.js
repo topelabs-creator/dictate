@@ -288,6 +288,13 @@ window.TTS = (() => {
     const preferredURI = savedVoice();
     const voice = preferredURI === FALLBACK_VOICE_URI ? null : listVoices(project.config.language).find(item => item.voiceURI === preferredURI) || voiceFor(project.config.language);
     selectedVoice = voice;
+    if (!voice && preferredURI !== FALLBACK_VOICE_URI) {
+      state = 'paused';
+      project.progress.isPlaying = false;
+      sync();
+      window.UI.toast(window.DictateI18n?.t?.('reader.onlineVoiceConsentRequired', 'Select the online voice to send text for speech, or choose an installed device voice.') || 'Select the online voice to send text for speech, or choose an installed device voice.', 'warning');
+      return;
+    }
     state = voice ? 'loading' : 'playing';
     sync();
     const playback = voice ? speakBrowser(group, currentGeneration, voice) : speakFallback(group, currentGeneration);
