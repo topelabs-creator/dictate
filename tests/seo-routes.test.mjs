@@ -86,6 +86,21 @@ test('app shell resolves root assets on nested project reloads', async () => {
   assert.match(html, /const base = isGitHubPages && segments\.length \? `\/\$\{segments\[0\]\}\/` : '\/'/);
 });
 
+test('app shell uses the refreshed TTS fallback script version', async () => {
+  const html = await fs.readFile(path.join(root, 'index.html'), 'utf8');
+  assert.match(html, /<script src="tts\.js\?v=25"><\/script>/);
+  assert.match(html, /<script src="voice-lab\.js\?v=15"><\/script>/);
+  assert.match(html, /<script src="parser\.js\?v=24"><\/script>/);
+});
+
+test('voice selector exposes the online fallback even when no device voice exists', async () => {
+  const voiceLab = await fs.readFile(path.join(root, 'voice-lab.js'), 'utf8');
+  const tts = await fs.readFile(path.join(root, 'tts.js'), 'utf8');
+  assert.match(voiceLab, /pt: 'Voz online \(API Web\)'/);
+  assert.match(voiceLab, /fallbackOption\}\$\{deviceOptions\}/);
+  assert.match(tts, /preferredURI === FALLBACK_VOICE_URI \? null/);
+});
+
 test('mobile reader reserves clearance for its dynamic fixed controls', async () => {
   const css = await fs.readFile(path.join(root, 'styles.css'), 'utf8');
   const ui = await fs.readFile(path.join(root, 'ui.js'), 'utf8');

@@ -34,11 +34,14 @@
   const escape = value => String(value ?? '').replace(/[&<>\"]/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;' }[character]));
   const languageOptions = selected => languages.map(([code, name]) => `<option value="${code}" ${code === selected ? 'selected' : ''}>${name} (${code.toUpperCase()})</option>`).join('');
 
+  const fallbackNames = { en: 'Online voice (Web API)', pt: 'Voz online (API Web)', es: 'Voz en línea (API web)', fr: 'Voix en ligne (API Web)', de: 'Online-Stimme (Web-API)', it: 'Voce online (API Web)', ru: 'Онлайн-голос (веб-API)' };
+
   function voiceOptions(language) {
     const voices = TTS.listVoices(language);
     const selected = TTS.savedVoice();
-    const options = voices.length ? voices.map(voice => `<option value="${escape(voice.voiceURI)}" ${voice.voiceURI === selected ? 'selected' : ''}>${escape(voice.name)} - ${escape(voice.lang)}${voice.localService === false ? ' - online hint' : ' - device'}</option>`).join('') : `<option value="">No ${language.toUpperCase()} voice available</option>`;
-    return { voices, options };
+    const fallbackOption = `<option value="${TTS.fallbackVoiceURI}" ${selected === TTS.fallbackVoiceURI || !voices.length ? 'selected' : ''}>${fallbackNames[language] || fallbackNames.en} - ${language.toUpperCase()}</option>`;
+    const deviceOptions = voices.map(voice => `<option value="${escape(voice.voiceURI)}" ${voice.voiceURI === selected ? 'selected' : ''}>${escape(voice.name)} - ${escape(voice.lang)}${voice.localService === false ? ' - online hint' : ' - device'}</option>`).join('');
+    return { voices, options: `${fallbackOption}${deviceOptions}` };
   }
 
   function render() {
@@ -50,7 +53,7 @@
     const section = document.createElement('section');
     section.id = 'voice-lab';
     section.className = 'voice-lab';
-    const ui = copy(); section.innerHTML = `<strong>${ui[0]}</strong><p class="setting-note">${ui[1]}</p><label class="setting">${ui[2]}<select id="voice-language">${languageOptions(language)}</select></label><label class="setting">${ui[3]}<select id="voice-choice">${result.options}</select></label><div class="voice-actions"><button class="button" id="voice-preview" type="button">${ui[4]}</button><button class="button" id="voice-refresh" type="button">${ui[5]}</button></div><p class="setting-note" id="voice-status">${result.voices.length ? `${result.voices.length} ${ui[6]}` : text(ui[7], language)}</p>`;
+    const ui = copy(); section.innerHTML = `<strong>${ui[0]}</strong><p class="setting-note">${ui[1]}</p><label class="setting">${ui[2]}<select id="voice-language">${languageOptions(language)}</select></label><label class="setting">${ui[3]}<select id="voice-choice">${result.options}</select></label><div class="voice-actions"><button class="button" id="voice-preview" type="button">${ui[4]}</button><button class="button" id="voice-refresh" type="button">${ui[5]}</button></div><p class="setting-note" id="voice-status">${result.voices.length ? `${result.voices.length} ${ui[6]}` : `${text(ui[7], language)} ${fallbackNames[language] || fallbackNames.en} is available.`}</p>`;
     panel.append(section);
 
     const languageSelect = section.querySelector('#voice-language');
@@ -59,7 +62,7 @@
     const updateVoices = () => {
       const next = voiceOptions(languageSelect.value);
       voiceSelect.innerHTML = next.options;
-      const ui = copy(); status.textContent = next.voices.length ? `${next.voices.length} ${ui[6]}` : text(ui[7], languageSelect.value);
+      const ui = copy(); status.textContent = next.voices.length ? `${next.voices.length} ${ui[6]}` : `${text(ui[7], languageSelect.value)} ${fallbackNames[languageSelect.value] || fallbackNames.en} is available.`;
     };
     languageSelect.onchange = updateVoices;
     voiceSelect.onchange = event => { TTS.selectVoice(event.target.value); status.textContent = copy()[8]; };
@@ -84,7 +87,7 @@
     const restart = footer.querySelector('#restart');
     footer.insertBefore(tools, restart);
     tools.querySelector('#reader-voice').onchange = event => TTS.selectVoice(event.target.value);
-    tools.querySelector('#reader-voice-preview').onclick = () => { const voice = result.voices.find(item => item.voiceURI === tools.querySelector('#reader-voice').value) || result.voices[0]; if (voice) TTS.previewVoice(voice, settings.defaultSpeed, previewText[language]); else TTS.previewLanguage(language, settings.defaultSpeed, previewText[language]); };
+    tools.querySelector('#reader-voice-preview').onclick = () => { const choice = tools.querySelector('#reader-voice').value; const voice = choice === TTS.fallbackVoiceURI ? null : (result.voices.find(item => item.voiceURI === choice) || result.voices[0]); if (voice) TTS.previewVoice(voice, settings.defaultSpeed, previewText[language]); else TTS.previewLanguage(language, settings.defaultSpeed, previewText[language]); };
   }
 
   function removeUnsupportedLanguageOptions() {

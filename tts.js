@@ -8,6 +8,7 @@ window.TTS = (() => {
   let selectedVoice = null;
   let fallbackAudio = null;
   let speechKeepAliveTimer = null;
+  const FALLBACK_VOICE_URI = 'dictate-online-fallback';
 
   const PREFERRED_VOICE_PATTERNS = {
     en: [/online.*natural/i, /natural/i, /google us english/i, /samantha/i, /daniel/i, /alex/i],
@@ -152,7 +153,7 @@ window.TTS = (() => {
   }
 
   function previewLanguage(language, speed = 0.9, text) {
-    if ('speechSynthesis' in window && voiceFor(language)) return previewVoice(voiceFor(language), speed, text);
+    if (savedVoice() !== FALLBACK_VOICE_URI && 'speechSynthesis' in window && voiceFor(language)) return previewVoice(voiceFor(language), speed, text);
     const audio = new Audio(fallbackAudioUrl(text, language));
     audio.playbackRate = Math.max(0.25, Math.min(2, Number(speed) || 0.9));
     audio.play().catch(() => {});
@@ -285,7 +286,7 @@ window.TTS = (() => {
     const currentGeneration = generation;
     const group = project.groups[project.progress.currentGroupIndex];
     const preferredURI = savedVoice();
-    const voice = listVoices(project.config.language).find(item => item.voiceURI === preferredURI) || voiceFor(project.config.language);
+    const voice = preferredURI === FALLBACK_VOICE_URI ? null : listVoices(project.config.language).find(item => item.voiceURI === preferredURI) || voiceFor(project.config.language);
     selectedVoice = voice;
     state = voice ? 'loading' : 'playing';
     sync();
@@ -328,6 +329,7 @@ window.TTS = (() => {
   return {
     init, load, get, stop, restart, listVoices, savedVoice, selectVoice, previewVoice, previewLanguage,
     normalizeLanguageTag,
+    fallbackVoiceURI: FALLBACK_VOICE_URI,
     matchesLanguage,
     voiceFor,
     toggle() {
