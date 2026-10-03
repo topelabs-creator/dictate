@@ -80,6 +80,20 @@ test('localized loaders use the active index version', async () => {
   }
 });
 
+test('app shell resolves root assets on nested project reloads', async () => {
+  const html = await fs.readFile(path.join(root, 'index.html'), 'utf8');
+  assert.match(html, /document\.write\(`<base href="\$\{base\}">`\)/);
+  assert.match(html, /const base = isGitHubPages && segments\.length \? `\/\$\{segments\[0\]\}\/` : '\/'/);
+});
+
+test('mobile reader reserves clearance for its dynamic fixed controls', async () => {
+  const css = await fs.readFile(path.join(root, 'styles.css'), 'utf8');
+  const ui = await fs.readFile(path.join(root, 'ui.js'), 'utf8');
+  assert.match(css, /padding-bottom:calc\(var\(--reader-footer-clearance, 210px\) \+ env\(safe-area-inset-bottom, 0px\)\)/);
+  assert.match(ui, /ResizeObserver\(syncReaderFooterClearance\)/);
+  assert.match(ui, /setProperty\('--reader-footer-clearance'/);
+});
+
  test('runtime source has no public Arabic selector or Russian grammar defect', async () => {
   const ui = await fs.readFile(path.join(root, 'ui.js'), 'utf8');
   const app = await fs.readFile(path.join(root, 'app.js'), 'utf8');
