@@ -1,11 +1,14 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DICTATE | Turn Notes into Speech</title>
-  <meta name="description" content="DICTATE is a private browser text to speech reader for notes, PDFs, and study material. Paste text or upload a file to listen, revise, and learn with natural speech in your browser.">
-  <meta name="keywords" content="browser text to speech reader, read pdf aloud online, read notes aloud in browser, student dictation tool, private text to speech, browser voice reader">
+  <meta name="description"
+    content="DICTATE is a private browser text to speech reader for notes, PDFs, and study material. Paste text or upload a file to listen, revise, and learn with natural speech in your browser.">
+  <meta name="keywords"
+    content="browser text to speech reader, read pdf aloud online, read notes aloud in browser, student dictation tool, private text to speech, browser voice reader">
   <meta name="theme-color" content="#0f1720">
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
   <link rel="canonical" href="https://dictate.rakimrakim41.workers.dev/">
@@ -18,7 +21,8 @@
   <link rel="alternate" hreflang="ru" href="https://dictate.rakimrakim41.workers.dev/ru/">
   <link rel="alternate" hreflang="x-default" href="https://dictate.rakimrakim41.workers.dev/">
   <meta property="og:title" content="DICTATE | Turn Notes into Speech">
-  <meta property="og:description" content="Turn your notes, PDFs, and study material into listening sessions. Dictate ideas, upload documents, and listen privately in your browser.">
+  <meta property="og:description"
+    content="Turn your notes, PDFs, and study material into listening sessions. Dictate ideas, upload documents, and listen privately in your browser.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://dictate.rakimrakim41.workers.dev/">
   <meta property="og:site_name" content="DICTATE">
@@ -27,7 +31,8 @@
   <meta property="og:image:height" content="458">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="DICTATE | Turn Notes into Speech">
-  <meta name="twitter:description" content="Paste text, upload documents, and listen to your notes. A private browser-based text-to-speech and dictation tool for study and revision.">
+  <meta name="twitter:description"
+    content="Paste text, upload documents, and listen to your notes. A private browser-based text-to-speech and dictation tool for study and revision.">
   <meta name="twitter:site" content="@dictatorapp">
   <meta name="twitter:image" content="https://dictate.rakimrakim41.workers.dev/og-image.png">
   <link rel="icon" type="image/png" href="favicon.png?v=4">
@@ -42,9 +47,20 @@
     })();
   </script>
   <style>
-    html { background-color: #0f1720; }
-    body { visibility: hidden; opacity: 0; transition: opacity 0.12s ease; }
-    html.is-ready body { visibility: visible; opacity: 1; }
+    html {
+      background-color: #0f1720;
+    }
+
+    body {
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.12s ease;
+    }
+
+    html.is-ready body {
+      visibility: visible;
+      opacity: 1;
+    }
   </style>
   <script>
     (() => {
@@ -78,7 +94,7 @@
       const raw = localStorage.getItem('dictator_settings');
       const legacy = localStorage.getItem('dictator_theme');
       let theme = 'system';
-      try { theme = raw ? JSON.parse(raw).theme || theme : legacy || theme; } catch {}
+      try { theme = raw ? JSON.parse(raw).theme || theme : legacy || theme; } catch { }
       const dark = theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
       document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     })();
@@ -86,6 +102,7 @@
   <link rel="stylesheet" href="styles.css?v=3">
   <!-- GA4: replace G-XXXXXXXXXX and enable only after consent/privacy review. -->
 </head>
+
 <body>
   <header class="app-header">
     <button class="icon-button" id="menu-toggle" aria-label="Open navigation menu">☰</button>
@@ -116,7 +133,8 @@
   <noscript>
     <section class="seo-landing-content" aria-labelledby="seo-landing-title">
       <h1 id="seo-landing-title">DICTATE: Free Browser Text to Speech Reader</h1>
-      <p>DICTATE is a privacy-first browser tool for reading study notes, scripts, PDFs, and documents aloud. No account or application server is required.</p>
+      <p>DICTATE is a privacy-first browser tool for reading study notes, scripts, PDFs, and documents aloud. No account
+        or application server is required.</p>
       <h2>Key features</h2>
       <ul>
         <li>Paste text or import TXT, PDF, and DOCX files.</li>
@@ -144,4 +162,5 @@
   <script src="app.js?v=26"></script>
   <script src="voice-lab.js?v=14"></script>
 </body>
+
 </html>

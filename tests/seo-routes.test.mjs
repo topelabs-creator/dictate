@@ -117,6 +117,7 @@ test('reader rendering keeps fallback navigation and active state efficient', as
   assert.match(ui, /const fallbackIndex = Math\.min\(cursor/);
   assert.match(ui, /let activeReaderGroup = null/);
   assert.match(ui, /activeReaderGroup\?\.classList\.remove\('active'\)/);
+  assert.match(ui, /\.word-group\[data-index="\$\{project\.progress\.currentGroupIndex\}"\]/);
   assert.doesNotMatch(ui, /document\.querySelectorAll\('\.word-group'\)\.forEach\(node => node\.classList\.toggle\('active'/);
 });
 
