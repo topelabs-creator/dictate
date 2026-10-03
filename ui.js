@@ -778,7 +778,7 @@ Mira fece un respiro, poi un altro. "Va bene", disse. "Scopriamo cosa ricorda l'
     if (!paragraphBlocks.length && !groups.length) return '';
     if (!paragraphBlocks.length) {
       return groups.map(group => {
-        if (group.hasTitle || group.hasSubtitle) return `<${group.hasTitle ? 'h2' : 'h3'} class="reader-${group.hasTitle ? 'title' : 'subtitle'}">${safe(group.rawText)}</${group.hasTitle ? 'h2' : 'h3'}>`;
+        if (group.hasTitle || group.hasSubtitle) return `<${group.hasTitle ? 'h2' : 'h3'} class="word-group reader-${group.hasTitle ? 'title' : 'subtitle'}" data-index="${group.index}">${safe(group.rawText)}</${group.hasTitle ? 'h2' : 'h3'}>`;
         return `<span class="word-group" data-index="${group.index}">${safe(group.rawText)}</span> `;
       }).join('');
     }
