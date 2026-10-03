@@ -22,13 +22,34 @@ window.TTS = (() => {
   };
   const BAD_VOICE_PATTERNS = [/\bdavid\b/i, /\bzira\b/i, /\bhazel\b/i, /desktop/i, /espeak/i, /festival/i];
 
+  function normalizeLanguageTag(language) {
+    const value = String(language || 'en').trim();
+    if (!value) return 'en';
+    return value.toLowerCase().replace(/_/g, '-').replace(/\s+/g, '');
+  }
+
+  function matchesLanguage(voiceLanguage, targetLanguage) {
+    const voice = normalizeLanguageTag(voiceLanguage);
+    const target = normalizeLanguageTag(targetLanguage);
+    if (!voice || !target) return false;
+    if (voice === target) return true;
+    const voiceBase = voice.split('-')[0];
+    const targetBase = target.split('-')[0];
+    return voiceBase === targetBase || voice.startsWith(`${targetBase}-`) || target.startsWith(`${voiceBase}-`);
+  }
+
   const get = () => project;
   const defaultPauseDuration = () => { const value=Number(window.DictateI18n?.getSettings?.().defaultPauseDuration); return Number.isFinite(value) ? value : .8; };
-  const languageKey = language => String(language || 'en').toLowerCase().split('-')[0];
+  const languageKey = language => normalizeLanguageTag(language).split('-')[0];
   const localeScore = (voice, language) => {
-    const target = String(language || 'en').toLowerCase();
-    const locale = String(voice.lang || '').toLowerCase();
-    return locale === target ? 100 : locale.startsWith(`${target}-`) ? 70 : locale.startsWith(languageKey(target)) ? 35 : 0;
+    const target = normalizeLanguageTag(language || 'en');
+    const locale = normalizeLanguageTag(voice.lang || '');
+    if (!locale || !target) return 0;
+    if (locale === target) return 100;
+    if (locale.startsWith(`${target}-`)) return 70;
+    if (locale.startsWith(languageKey(target))) return 35;
+    if (matchesLanguage(locale, target)) return 30;
+    return 0;
   };
 
   function rankVoice(voice, language) {
@@ -47,17 +68,19 @@ window.TTS = (() => {
   }
 
   function voiceFor(language) {
+    const normalizedLanguage = normalizeLanguageTag(language || 'en');
     selectedVoice = availableVoices()
-      .map(voice => ({ voice, score: rankVoice(voice, language) }))
-      .filter(item => localeScore(item.voice, language) > 0)
+      .map(voice => ({ voice, score: rankVoice(voice, normalizedLanguage) }))
+      .filter(item => matchesLanguage(item.voice.lang, normalizedLanguage) || localeScore(item.voice, normalizedLanguage) > 0)
       .sort((left, right) => right.score - left.score)[0]?.voice || null;
     return selectedVoice;
   }
 
   function listVoices(language = 'en') {
+    const normalizedLanguage = normalizeLanguageTag(language || 'en');
     return availableVoices()
-      .map(voice => ({ voice, score: rankVoice(voice, language), localeScore: localeScore(voice, language) }))
-      .filter(item => item.localeScore > 0)
+      .map(voice => ({ voice, score: rankVoice(voice, normalizedLanguage), localeScore: localeScore(voice, normalizedLanguage) }))
+      .filter(item => matchesLanguage(item.voice.lang, normalizedLanguage) || item.localeScore > 0)
       .sort((left, right) => right.score - left.score)
       .map(item => item.voice);
   }
@@ -90,6 +113,10 @@ window.TTS = (() => {
 
   function previewLanguage(language, speed = 0.9, text) {
     if ('speechSynthesis' in window && voiceFor(language)) return previewVoice(voiceFor(language), speed, text);
+    if (typeof window.DictateTTSFallback === 'function') {
+      window.DictateTTSFallback({ text: text || 'Preview', language, speed }).catch(() => {});
+      return true;
+    }
     const audio = new Audio(fallbackAudioUrl(text, language));
     audio.play().catch(() => {});
     return true;
@@ -235,11 +262,29 @@ window.TTS = (() => {
       if (currentGeneration !== generation) throw new Error('Playback canceled.');
       if (unit.pauseBefore) await new Promise(resolve => setTimeout(resolve, unit.pauseBefore));
       await new Promise((resolve, reject) => {
-        const audio = new Audio(fallbackAudioUrl(unit.text, language));
-        fallbackAudio = audio;
-        audio.onended = resolve;
-        audio.onerror = () => reject(new Error(`No ${language.toUpperCase()} browser voice is available, and the online fallback could not play.`));
-        audio.play().catch(reject);
+        const playFallbackAudio = async () => {
+          if (typeof window.DictateTTSFallback === 'function') {
+            try {
+              const result = await window.DictateTTSFallback({ text: unit.text, language, speed: project.config.speed || 0.9 });
+              if (result && typeof result === 'object' && result.url) {
+                const audio = new Audio(result.url);
+                fallbackAudio = audio;
+                audio.onended = resolve;
+                audio.onerror = () => reject(new Error(`No ${language.toUpperCase()} browser voice is available, and the cloud fallback could not play.`));
+                audio.play().catch(reject);
+                return;
+              }
+            } catch (error) {
+              // Fall through to direct browser fallback below.
+            }
+          }
+          const audio = new Audio(fallbackAudioUrl(unit.text, language));
+          fallbackAudio = audio;
+          audio.onended = resolve;
+          audio.onerror = () => reject(new Error(`No ${language.toUpperCase()} browser voice is available, and the online fallback could not play. Please install the language voice in system settings or try a browser with native TTS support.`));
+          audio.play().catch(reject);
+        };
+        playFallbackAudio().catch(reject);
       });
     }
     fallbackAudio = null;
@@ -296,6 +341,9 @@ window.TTS = (() => {
 
   return {
     init, load, get, stop, restart, listVoices, savedVoice, selectVoice, previewVoice, previewLanguage,
+    normalizeLanguageTag,
+    matchesLanguage,
+    voiceFor,
     toggle() {
       if (['playing', 'loading', 'between_groups', 'between_repeats'].includes(state)) return this.pause();
       return this.play();

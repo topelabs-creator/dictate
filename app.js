@@ -156,6 +156,25 @@
   }
   window.DictateI18n = { t, resolveUiLanguage, getSystemUiLanguage, getUrlUiLanguage, getSettings, saveSettings, options: uiLanguageOptions };
   function applyTheme(theme) { const dark=theme==='dark'||(theme==='system'&&matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.dataset.theme=dark?'dark':'light'; document.querySelector('#theme-toggle').textContent=dark?'☀':'☾'; }
+  async function fallbackTtsAudio({ text, language, speed = 0.9 }) {
+    try {
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, language, speed })
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || 'Cloud TTS fallback failed.');
+      }
+      const audioUrl = URL.createObjectURL(await response.blob());
+      return { url: audioUrl };
+    } catch (error) {
+      console.warn('Cloud TTS fallback unavailable:', error);
+      return null;
+    }
+  }
+  window.DictateTTSFallback = fallbackTtsAudio;
   function applyUiLanguage() {
     const language = resolveUiLanguage(getSettings().uiLanguage);
     document.documentElement.lang = language;

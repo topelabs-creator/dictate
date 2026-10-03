@@ -74,6 +74,25 @@ http://localhost:8000
 
 An HTTP origin is recommended over opening the file directly because browser security rules are more reliable for dynamic PDF, DOCX, and language-detection imports.
 
+## Cloud TTS Fallback
+
+The app supports a browser-first TTS flow with a no-signup fallback for phones or browsers without a matching local voice package.
+
+### Free fallback approach
+
+- Prefer browser speech when a matching voice is available.
+- If no browser voice is detected, call the Worker endpoint at `/api/tts`.
+- The Worker tries a public no-signup TTS source and returns an MP3 stream to the browser.
+- This avoids Azure signup friction and keeps the app working on mobile even when the device lacks a language voice pack.
+
+### Worker behavior
+
+The Worker is defined in `worker.js` and is intended for Cloudflare Workers deployment with the static assets served by the same project.
+
+### Why this helps on mobile
+
+This path avoids relying solely on OS-installed voices, which are often missing on Android devices. The browser can continue using local speech when available, and the free fallback ensures the app still reads text aloud when the phone lacks a language voice pack.
+
 ## Dual URL Routing
 
 DICTATE intentionally supports two URL modes so it is usable on hosts with different static-file behavior.
