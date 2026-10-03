@@ -18,8 +18,12 @@
           document.open();
           document.write(html.replace('<head>', `<head><base href="${base}">`));
           document.close();
+          document.documentElement.classList.remove('shell-loading');
+          document.documentElement.classList.add('is-ready');
         })
         .catch(() => {
+          document.documentElement.classList.remove('shell-loading');
+          document.documentElement.classList.add('is-ready');
           location.replace(targetHash);
         });
     })();

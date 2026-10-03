@@ -10,6 +10,7 @@
     (() => {
       const _gh = location.hostname.endsWith('.github.io'); const _r = _gh ? (location.pathname.split('/').filter(Boolean)[0] || '') : (location.pathname.startsWith('/DICTATOR/') ? 'DICTATOR' : ''); const base = _r ? '/' + _r + '/' : '/';
       const targetHash = `${base}#/about`;
+      document.documentElement.classList.add('shell-loading');
       fetch(`${base}index.html?v=32`)
         .then(r => r.text())
         .then(html => {
@@ -17,8 +18,12 @@
           document.open();
           document.write(html.replace('<head>', `<head><base href="${base}">`));
           document.close();
+          document.documentElement.classList.remove('shell-loading');
+          document.documentElement.classList.add('is-ready');
         })
         .catch(() => {
+          document.documentElement.classList.remove('shell-loading');
+          document.documentElement.classList.add('is-ready');
           location.replace(targetHash);
         });
     })();
