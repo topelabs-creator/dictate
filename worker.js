@@ -18,6 +18,8 @@ export function mapVoiceForLanguage(language) {
   return languageMap[base] || 'en-US';
 }
 
+const MAX_TTS_CHARACTERS = 200;
+
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -68,15 +70,20 @@ async function handleTts(request) {
     });
   }
 
-  if (request.method !== 'POST') {
+  if (request.method !== 'POST' && request.method !== 'GET') {
     return jsonResponse({ error: 'Method not allowed.' }, 405);
   }
 
-  let payload;
-  try {
-    payload = await request.json();
-  } catch {
-    return jsonResponse({ error: 'Request body must be valid JSON.' }, 400);
+  let payload = {};
+  if (request.method === 'POST') {
+    try {
+      payload = await request.json();
+    } catch {
+      return jsonResponse({ error: 'Request body must be valid JSON.' }, 400);
+    }
+  } else {
+    const url = new URL(request.url);
+    payload = { text: url.searchParams.get('text'), language: url.searchParams.get('language') };
   }
 
   const text = String(payload?.text || '').trim();
@@ -84,6 +91,9 @@ async function handleTts(request) {
 
   if (!text) {
     return jsonResponse({ error: 'Missing text input.' }, 400);
+  }
+  if (text.length > MAX_TTS_CHARACTERS) {
+    return jsonResponse({ error: `Text must be ${MAX_TTS_CHARACTERS} characters or fewer.` }, 413);
   }
 
   const audioBuffer = await fetchPublicTts(text, language);

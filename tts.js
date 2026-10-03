@@ -6,7 +6,6 @@ window.TTS = (() => {
   let generation = 0;
   let configVersion = 0;
   let selectedVoice = null;
-  let voiceWaiters = [];
   let fallbackAudio = null;
   let speechKeepAliveTimer = null;
 
@@ -108,45 +107,61 @@ window.TTS = (() => {
   }
 
   function fallbackAudioUrl(text, language) {
-    return `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${encodeURIComponent(languageKey(language))}&q=${encodeURIComponent(text)}`;
+    const query = new URLSearchParams({ text, language: languageKey(language) });
+    return `/api/tts?${query}`;
+  }
+
+  function splitFallbackUnits(units, maximumLength = 200) {
+    return units.flatMap(unit => {
+      const words = unit.text.split(/\s+/);
+      const chunks = [];
+      let chunk = '';
+      for (const word of words) {
+        if (word.length > maximumLength) {
+          if (chunk) chunks.push(chunk);
+          for (let offset = 0; offset < word.length; offset += maximumLength) {
+            chunks.push(word.slice(offset, offset + maximumLength));
+          }
+          chunk = '';
+          continue;
+        }
+        const next = chunk ? `${chunk} ${word}` : word;
+        if (next.length > maximumLength && chunk) {
+          chunks.push(chunk);
+          chunk = word;
+        } else {
+          chunk = next;
+        }
+      }
+      if (chunk) chunks.push(chunk);
+      return chunks.map((text, index) => ({ text, pauseBefore: index === 0 ? unit.pauseBefore : 0 }));
+    });
+  }
+
+  function fallbackAudioForPlayback(unit, language, speed) {
+    if (!fallbackAudio) fallbackAudio = new Audio();
+    const audio = fallbackAudio;
+    audio.pause();
+    audio.src = fallbackAudioUrl(unit.text, language);
+    audio.playbackRate = Math.max(0.25, Math.min(2, Number(speed) || 0.9));
+    return new Promise((resolve, reject) => {
+      audio.onended = resolve;
+      audio.onerror = () => reject(new Error(`No ${language.toUpperCase()} browser voice is available, and the online fallback could not play.`));
+      audio.play().catch(reject);
+    });
   }
 
   function previewLanguage(language, speed = 0.9, text) {
     if ('speechSynthesis' in window && voiceFor(language)) return previewVoice(voiceFor(language), speed, text);
-    if (typeof window.DictateTTSFallback === 'function') {
-      window.DictateTTSFallback({ text: text || 'Preview', language, speed }).catch(() => {});
-      return true;
-    }
     const audio = new Audio(fallbackAudioUrl(text, language));
+    audio.playbackRate = Math.max(0.25, Math.min(2, Number(speed) || 0.9));
     audio.play().catch(() => {});
     return true;
-  }
-
-  function waitForVoices(language, timeoutMs = 1200) {
-    const voice = voiceFor(language);
-    if (voice || !('speechSynthesis' in window)) return Promise.resolve(voice);
-    return new Promise(resolve => {
-      let timeoutId;
-      const waiter = () => {
-        const nextVoice = voiceFor(language);
-        if (nextVoice) {
-          clearTimeout(timeoutId);
-          voiceWaiters = voiceWaiters.filter(item => item !== waiter);
-          resolve(nextVoice);
-        }
-      };
-      timeoutId = setTimeout(() => {
-        voiceWaiters = voiceWaiters.filter(item => item !== waiter);
-        resolve(voiceFor(language));
-      }, timeoutMs);
-      voiceWaiters.push(waiter);
-    });
   }
 
   function init() {
     if (!('speechSynthesis' in window)) return;
     speechSynthesis.cancel();
-    speechSynthesis.addEventListener('voiceschanged', () => voiceWaiters.splice(0).forEach(waiter => waiter()));
   }
 
   function startKeepAlive() {
@@ -173,7 +188,6 @@ window.TTS = (() => {
     if ('speechSynthesis' in window) speechSynthesis.cancel();
     if (fallbackAudio) {
       try { fallbackAudio.pause(); } catch {}
-      fallbackAudio = null;
     }
     utterance = null;
   }
@@ -252,66 +266,38 @@ window.TTS = (() => {
 
   async function speakFallback(group, currentGeneration) {
     const language = languageKey(project.config.language);
-    const units = prepareSpeechUnits(group.rawText, group.hasTitle, group.hasSubtitle, language);
+    const units = splitFallbackUnits(prepareSpeechUnits(group.rawText, group.hasTitle, group.hasSubtitle, language));
     const startedAt = performance.now();
     state = 'playing';
     project.progress.isPlaying = true;
     project.progress.currentRepeat = project.progress.currentRepeat || 1;
     sync();
-    for (const unit of units) {
+    for (const [index, unit] of units.entries()) {
       if (currentGeneration !== generation) throw new Error('Playback canceled.');
-      if (unit.pauseBefore) await new Promise(resolve => setTimeout(resolve, unit.pauseBefore));
-      await new Promise((resolve, reject) => {
-        const playFallbackAudio = async () => {
-          if (typeof window.DictateTTSFallback === 'function') {
-            try {
-              const result = await window.DictateTTSFallback({ text: unit.text, language, speed: project.config.speed || 0.9 });
-              if (result && typeof result === 'object' && result.url) {
-                const audio = new Audio(result.url);
-                fallbackAudio = audio;
-                audio.onended = resolve;
-                audio.onerror = () => reject(new Error(`No ${language.toUpperCase()} browser voice is available, and the cloud fallback could not play.`));
-                audio.play().catch(reject);
-                return;
-              }
-            } catch (error) {
-              // Fall through to direct browser fallback below.
-            }
-          }
-          const audio = new Audio(fallbackAudioUrl(unit.text, language));
-          fallbackAudio = audio;
-          audio.onended = resolve;
-          audio.onerror = () => reject(new Error(`No ${language.toUpperCase()} browser voice is available, and the online fallback could not play. Please install the language voice in system settings or try a browser with native TTS support.`));
-          audio.play().catch(reject);
-        };
-        playFallbackAudio().catch(reject);
-      });
+      if (unit.pauseBefore && index > 0) await new Promise(resolve => setTimeout(resolve, unit.pauseBefore));
+      await fallbackAudioForPlayback(unit, language, project.config.speed);
     }
-    fallbackAudio = null;
     if (currentGeneration === generation) finishSpeech(Math.max(250, performance.now() - startedAt), currentGeneration);
   }
 
-  async function speak() {
+  function speak() {
     if (!project || !project.groups.length) return;
     const currentGeneration = generation;
     const group = project.groups[project.progress.currentGroupIndex];
-    state = 'loading';
+    const preferredURI = savedVoice();
+    const voice = listVoices(project.config.language).find(item => item.voiceURI === preferredURI) || voiceFor(project.config.language);
+    selectedVoice = voice;
+    state = voice ? 'loading' : 'playing';
     sync();
-    try {
-      const preferredURI = savedVoice();
-      const voice = (await waitForVoices(project.config.language));
-      selectedVoice = listVoices(project.config.language).find(item => item.voiceURI === preferredURI) || voice;
-      if (currentGeneration !== generation) return;
-      if (voice) await speakBrowser(group, currentGeneration, selectedVoice);
-      else await speakFallback(group, currentGeneration);
-    } catch (error) {
+    const playback = voice ? speakBrowser(group, currentGeneration, voice) : speakFallback(group, currentGeneration);
+    playback.catch(error => {
       if (currentGeneration !== generation || error.message === 'Playback canceled.') return;
       clear();
       state = 'paused';
       if (project) project.progress.isPlaying = false;
       sync();
       window.UI.toast(error.message || 'Speech playback stopped. Try Play again.', 'danger');
-    }
+    });
   }
 
   async function persist() {
