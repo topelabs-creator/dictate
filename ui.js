@@ -683,6 +683,17 @@ Mira fece un respiro, poi un altro. "Va bene", disse. "Scopriamo cosa ricorda l'
       }, 250);
       return count;
     };
+    input.addEventListener('paste', event => {
+      const html = event.clipboardData?.getData('text/html');
+      if (!html) return;
+      const speechText = convertRichTextToSpeechText(html);
+      if (!speechText) return;
+      event.preventDefault();
+      const prefix = input.value && !input.value.endsWith(' ') ? `${input.value} ` : input.value;
+      const valueToInsert = speechText;
+      input.value = `${prefix}${valueToInsert}`;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
     input.addEventListener('input', update); update();
     document.querySelector('#view-projects').onclick = () => Router.navigate('projects');
     document.querySelectorAll('[data-open]').forEach(node => node.onclick = () => Router.navigate(`project/${node.dataset.open}`));
@@ -793,8 +804,12 @@ Mira fece un respiro, poi un altro. "Va bene", disse. "Scopriamo cosa ricorda l'
       }).join('');
     }
     let cursor = 0;
+    let tokenCursor = 0;
     return paragraphBlocks.map(paragraphText => {
       const paragraphTokens = tokenize(paragraphText);
+      const paragraphStart = tokenCursor;
+      const paragraphEnd = paragraphStart + paragraphTokens.length;
+      tokenCursor = paragraphEnd;
       const size = Math.max(1, Number(project.config.wordsPerGroup) || 1);
       const expectedCount = Math.max(1, Math.ceil(paragraphTokens.length / size));
       const chunk = groups.slice(cursor, cursor + expectedCount);

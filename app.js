@@ -2,7 +2,7 @@
   const TTS = window.TTS;
   const Router = window.Router;
   const UI = window.UI;
-  const settingsKey = 'dictator_settings'; const defaults = { uiLanguage:'auto', defaultDictationLang:'auto', defaultWordsPerGroup:6, defaultRepetitions:2, defaultSpeed:.9, defaultPauseDuration:.8, theme:'system' };
+  const settingsKey = 'dictator_settings'; const defaults = { uiLanguage:'auto', defaultDictationLang:'auto', defaultWordsPerGroup:6, defaultRepetitions:2, defaultSpeed:.9, defaultPauseDuration:.8, lineJumpBehavior:'pause', theme:'system' };
   const settingsState = (() => { try { return { ...defaults, ...JSON.parse(localStorage.getItem(settingsKey) || '{}') }; } catch { return { ...defaults }; } })();
   const uiLanguageOptions = ['auto','pt','en','fr','es','de','it','ru'];
   const UI_TEXT = {
@@ -22,6 +22,7 @@
       'settings.auto': 'Auto',
       'settings.voiceLab': 'Voice Lab',
       'settings.uiLanguageNote': 'Choose and preview the clearest voice available for each language.',
+      'settings.lineJumpBehavior': 'Line jump behavior',
     },
     pt: {
       'nav.title': 'Navegar',
@@ -39,6 +40,7 @@
       'settings.auto': 'Automático',
       'settings.voiceLab': 'Laboratório de voz',
       'settings.uiLanguageNote': 'Escolha e pré-visualize a voz mais clara disponível para cada idioma.',
+      'settings.lineJumpBehavior': 'Comportamento ao pular linha',
     },
     fr: {
       'nav.title': 'Naviguer',
@@ -56,6 +58,7 @@
       'settings.auto': 'Auto',
       'settings.voiceLab': 'Laboratoire vocal',
       'settings.uiLanguageNote': 'Choisissez et prévisualisez la voix la plus claire disponible pour chaque langue.',
+      'settings.lineJumpBehavior': 'Comportement au saut de ligne',
     },
     es: {
       'nav.title': 'Navegar',
@@ -73,6 +76,7 @@
       'settings.auto': 'Automático',
       'settings.voiceLab': 'Laboratorio de voz',
       'settings.uiLanguageNote': 'Elija y previsualice la voz más clara disponible para cada idioma.',
+      'settings.lineJumpBehavior': 'Comportamiento al saltar línea',
     },
     de: {
       'nav.title': 'Navigation',
@@ -90,6 +94,7 @@
       'settings.auto': 'Automatisch',
       'settings.voiceLab': 'Sprachlabor',
       'settings.uiLanguageNote': 'Wählen Sie die klarste verfügbare Stimme für jede Sprache aus und hören Sie eine Vorschau.',
+      'settings.lineJumpBehavior': 'Verhalten bei Zeilenwechsel',
     },
     it: {
       'nav.title': 'Navigazione',
@@ -107,6 +112,7 @@
       'settings.auto': 'Automatico',
       'settings.voiceLab': 'Laboratorio voce',
       'settings.uiLanguageNote': 'Scegli e ascolta l’anteprima della voce più chiara disponibile per ogni lingua.',
+      'settings.lineJumpBehavior': 'Comportamento al cambio riga',
     },
     ru: {
       'nav.title': 'Навигация',
@@ -124,6 +130,7 @@
       'settings.auto': 'Авто',
       'settings.voiceLab': 'Голосовая лаборатория',
       'settings.uiLanguageNote': 'Выберите и прослушайте наиболее чистый голос для каждого языка.',
+      'settings.lineJumpBehavior': 'Поведение при переходе строки',
     }
   };
   function getSettings() { return settingsState; }
@@ -174,7 +181,50 @@
       document.querySelector('#page-menu').innerHTML='<div class="panel-header"><strong>' + t('nav.title', 'Navigate') + '</strong><button class="icon-button" data-close>×</button></div>' + nav.map(([path,label]) => `<a class="nav-link" data-route="${path}" href="${Router.url(path)}">${typeof label === 'string' && label.startsWith('nav.') ? t(label, label.replace('nav.','').replace(/^[a-z]/, c => c.toUpperCase())) : label}</a>`).join(''); document.querySelectorAll('a[data-route]').forEach(link=>link.onclick=event=>{if(event.button===0&&!event.metaKey&&!event.ctrlKey&&!event.shiftKey&&!event.altKey){event.preventDefault();panel('#page-menu',false);Router.navigate(link.dataset.route);}});
     document.querySelector('#home-link').onclick=()=>Router.navigate(''); document.querySelectorAll('[data-header-route]').forEach(link=>{link.href=Router.url(link.dataset.headerRoute);link.onclick=event=>{if(event.button===0&&!event.metaKey&&!event.ctrlKey&&!event.shiftKey&&!event.altKey){event.preventDefault();Router.navigate(link.dataset.headerRoute);}};}); 
   }
-  function renderPauseSetting() { const panelNode=document.querySelector('#settings-panel'); if (!panelNode || panelNode.querySelector('#setting-pause-range')) return; const value=getSettings(); const labels={en:'Pause between groups',pt:'Pausa entre grupos',fr:'Pause entre les groupes',es:'Pausa entre grupos',de:'Pause zwischen Gruppen',it:'Pausa tra i gruppi',ru:'Пауза между группами'}; const language=resolveUiLanguage(value.uiLanguage); const wrapper=document.createElement('label'); wrapper.className='setting speed-setting'; const initial=Math.max(0,Math.min(3.5,Number(value.defaultPauseDuration) || .8)).toFixed(1); wrapper.innerHTML=`${labels[language] || labels.en} <input id="setting-pause-range" type="range" min="0" max="3.5" step="0.1" value="${initial}"><input id="setting-pause-value" type="number" min="0" max="3.5" step="0.1" value="${initial}" aria-label="Pause duration in seconds"><span>s</span>`; panelNode.append(wrapper); const range=wrapper.querySelector('#setting-pause-range'); const number=wrapper.querySelector('#setting-pause-value'); const update=next=>{const clamped=Math.max(0,Math.min(3.5,Number(next) || 0));range.value=clamped.toFixed(1);number.value=clamped.toFixed(1);const settings=getSettings();settings.defaultPauseDuration=clamped;localStorage.setItem(settingsKey,JSON.stringify(settings));}; range.oninput=event=>update(event.target.value); number.oninput=event=>update(event.target.value); }
+  function renderPauseSetting() {
+    const panelNode = document.querySelector('#settings-panel');
+    if (!panelNode || panelNode.querySelector('#setting-pause-range')) return;
+    const value = getSettings();
+    const language = resolveUiLanguage(value.uiLanguage);
+    const labels = {
+      en: ['Pause between groups', 'Line jump behavior', 'Pause 1.2 seconds', 'Say "Jump line"', 'No extra pause'],
+      pt: ['Pausa entre grupos', 'Comportamento ao pular linha', 'Pausar 1,2 segundos', 'Dizer "Jump line"', 'Sem pausa extra'],
+      fr: ['Pause entre les groupes', 'Comportement au saut de ligne', 'Pause de 1,2 seconde', 'Dire "Jump line"', 'Aucune pause supplémentaire'],
+      es: ['Pausa entre grupos', 'Comportamiento al saltar línea', 'Pausa de 1,2 segundos', 'Decir "Jump line"', 'Sin pausa adicional'],
+      de: ['Pause zwischen Gruppen', 'Verhalten bei Zeilenwechsel', '1,2 Sekunden pausieren', '„Jump line“ sagen', 'Keine zusätzliche Pause'],
+      it: ['Pausa tra i gruppi', 'Comportamento al cambio riga', 'Pausa di 1,2 secondi', 'Dire "Jump line"', 'Nessuna pausa aggiuntiva'],
+      ru: ['Пауза между группами', 'Поведение при переходе строки', 'Пауза 1,2 секунды', 'Сказать "Jump line"', 'Без дополнительной паузы']
+    }[language] || ['Pause between groups', 'Line jump behavior', 'Pause 1.2 seconds', 'Say "Jump line"', 'No extra pause'];
+    const pause = document.createElement('label');
+    pause.className = 'setting speed-setting';
+    const initialPause = Math.max(0, Math.min(3.5, Number(value.defaultPauseDuration) || .8)).toFixed(1);
+    pause.innerHTML = `${labels[0]} <input id="setting-pause-range" type="range" min="0" max="3.5" step="0.1" value="${initialPause}"><input id="setting-pause-value" type="number" min="0" max="3.5" step="0.1" value="${initialPause}" aria-label="Pause duration in seconds"><span>s</span>`;
+    panelNode.append(pause);
+    const range = pause.querySelector('#setting-pause-range');
+    const number = pause.querySelector('#setting-pause-value');
+    const updatePause = next => {
+      const clamped = Math.max(0, Math.min(3.5, Number(next) || 0));
+      range.value = clamped.toFixed(1);
+      number.value = clamped.toFixed(1);
+      const settings = getSettings();
+      settings.defaultPauseDuration = clamped;
+      localStorage.setItem(settingsKey, JSON.stringify(settings));
+    };
+    range.oninput = event => updatePause(event.target.value);
+    number.oninput = event => updatePause(event.target.value);
+
+    const lineJump = document.createElement('label');
+    lineJump.className = 'setting';
+    lineJump.innerHTML = `${labels[1]}<select id="setting-line-jump"><option value="pause">${labels[2]}</option><option value="speak">${labels[3]}</option><option value="ignore">${labels[4]}</option></select>`;
+    const behavior = ['pause', 'speak', 'ignore'].includes(value.lineJumpBehavior) ? value.lineJumpBehavior : 'pause';
+    lineJump.querySelector('select').value = behavior;
+    lineJump.querySelector('select').onchange = event => {
+      const settings = getSettings();
+      settings.lineJumpBehavior = event.target.value;
+      localStorage.setItem(settingsKey, JSON.stringify(settings));
+    };
+    panelNode.append(lineJump);
+  }
   function renderSettings() { const value=getSettings(); const normalizedLanguage=(value.defaultDictationLang || 'auto').toLowerCase(); const uiLanguage=(value.uiLanguage || 'auto').toLowerCase(); document.querySelector('#settings-panel').innerHTML='<div class="panel-header"><strong>' + t('settings.title', 'Settings') + '</strong><button class="icon-button" data-close>×</button></div>' + `<label class="setting">${t('settings.uiLanguage', 'UI language')}<select id="ui-language"><option value="auto" ${uiLanguage==='auto'?'selected':''}>${t('settings.auto', 'Auto')}</option>${['pt','en','fr','es','de','it','ru'].map(code=>`<option value="${code}" ${uiLanguage===code?'selected':''}>${code.toUpperCase()}</option>`).join('')}</select></label><label class="setting">${t('settings.defaultLanguage', 'Default language')}<select id="setting-language"><option value="auto" ${normalizedLanguage==='auto'?'selected':''}>${t('settings.auto', 'Auto')}</option>${['pt','en','fr','es','de','it','ru'].map(code=>`<option value="${code}" ${normalizedLanguage===code?'selected':''}>${code.toUpperCase()}</option>`).join('')}</select></label><label class="setting">${t('settings.wordsPerGroup', 'Words per group')}<select id="setting-words">${Array.from({length:10},(_,i)=>`<option value="${i+1}" ${value.defaultWordsPerGroup===i+1?'selected':''}>${i+1}</option>`).join('')}</select></label><label class="setting">${t('settings.repetitions', 'Repetitions')}<select id="setting-reps">${Array.from({length:10},(_,i)=>`<option value="${i+1}" ${value.defaultRepetitions===i+1?'selected':''}>${i+1}</option>`).join('')}</select></label><label class="setting speed-setting">${t('settings.speed', 'Speed')} <input id="setting-speed-range" type="range" min="0.25" max="2" step="0.05" value="${Number(value.defaultSpeed).toFixed(2)}"><input id="setting-speed-value" type="number" min="0.25" max="2" step="0.05" value="${Number(value.defaultSpeed).toFixed(2)}" aria-label="Default speed value"><span>x</span></label>`; const save=()=>{const next=getSettings();next.defaultDictationLang=(document.querySelector('#setting-language').value || 'auto').toLowerCase();next.uiLanguage=(document.querySelector('#ui-language').value || 'auto').toLowerCase();next.defaultWordsPerGroup=Number(document.querySelector('#setting-words').value) || 6;next.defaultRepetitions=Number(document.querySelector('#setting-reps').value) || 2;next.defaultSpeed=Math.max(.25,Math.min(2,Number(document.querySelector('#setting-speed-value').value)||1));localStorage.setItem(settingsKey,JSON.stringify(next));applyUiLanguage();}; const range=document.querySelector('#setting-speed-range'); const speed=document.querySelector('#setting-speed-value'); const updateSpeed=next=>{const clamped=Math.max(.25,Math.min(2,Number(next)||1));range.value=clamped.toFixed(2);speed.value=clamped.toFixed(2);save();}; range.oninput=event=>updateSpeed(event.target.value); speed.oninput=event=>updateSpeed(event.target.value); document.querySelector('#setting-words').onchange=save; document.querySelector('#setting-reps').onchange=save; document.querySelector('#setting-language').onchange=save; document.querySelector('#ui-language').onchange=event => { const next=getSettings(); next.uiLanguage=(event.target.value || 'auto').toLowerCase(); localStorage.setItem(settingsKey, JSON.stringify(next)); Router.setLanguage(next.uiLanguage); applyUiLanguage(); const settingsPanelOpen=document.querySelector('#settings-panel')?.classList.contains('open'); renderMenu(); renderSettings(); renderPauseSetting(); if (settingsPanelOpen) document.querySelector('#settings-toggle')?.dispatchEvent(new Event('click')); }; const close=document.querySelector('[data-close]'); if (close) close.onclick=()=>panel('#settings-panel',false); }
   const initialSettings=getSettings(); let migrated=false; if (initialSettings.defaultSpeed === .6 || initialSettings.defaultSpeed === .7) { initialSettings.defaultSpeed=.9; migrated=true; } if (initialSettings.defaultWordsPerGroup === 3) { initialSettings.defaultWordsPerGroup=6; migrated=true; } if (typeof initialSettings.defaultDictationLang === 'string') { const normalizedLanguage=initialSettings.defaultDictationLang.toLowerCase(); if (normalizedLanguage !== initialSettings.defaultDictationLang) { initialSettings.defaultDictationLang=normalizedLanguage; migrated=true; } } if (typeof initialSettings.uiLanguage !== 'string') { initialSettings.uiLanguage='auto'; migrated=true; } else { const normalizedUiLanguage=initialSettings.uiLanguage.toLowerCase(); if (!uiLanguageOptions.includes(normalizedUiLanguage)) { initialSettings.uiLanguage='auto'; migrated=true; } else if (normalizedUiLanguage !== initialSettings.uiLanguage) { initialSettings.uiLanguage=normalizedUiLanguage; migrated=true; } } if (migrated) localStorage.setItem(settingsKey,JSON.stringify(initialSettings)); applyUiLanguage(); renderMenu(); renderSettings(); applyTheme(getSettings().theme); document.querySelector('#menu-toggle').onclick=()=>panel('#page-menu',true); document.querySelector('#settings-toggle').onclick=()=>panel('#settings-panel',true); document.querySelector('#scrim').onclick=()=>{panel('#page-menu',false);panel('#settings-panel',false);}; document.querySelector('#home-link').onclick=()=>Router.navigate('');  document.querySelector('#theme-toggle').onclick=()=>{const next=getSettings();next.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';localStorage.setItem(settingsKey,JSON.stringify(next));applyTheme(next.theme);}; addEventListener('keydown',event=>{if(event.key==='Escape'){panel('#page-menu',false);panel('#settings-panel',false);}}); addEventListener('popstate',()=>{panel('#page-menu',false);panel('#settings-panel',false);}); TTS.init(); Router.init();
   renderPauseSetting();

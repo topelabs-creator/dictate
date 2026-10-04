@@ -40,6 +40,13 @@ window.TTS = (() => {
 
   const get = () => project;
   const defaultPauseDuration = () => { const value=Number(window.DictateI18n?.getSettings?.().defaultPauseDuration); return Number.isFinite(value) ? value : .8; };
+  const lineJumpBehavior = () => ['pause', 'speak', 'ignore'].includes(window.DictateI18n?.getSettings?.().lineJumpBehavior) ? window.DictateI18n.getSettings().lineJumpBehavior : 'pause';
+  function withLineJumpCue(group, units) {
+    if (!(group.lineBreakBefore || group.paragraphBreakBefore) || lineJumpBehavior() !== 'speak') return units;
+    const cue = { text: 'Jump line', pauseBefore: 0 };
+    if (!units.length) return [cue];
+    return [cue, { ...units[0], pauseBefore: Math.max(350, units[0].pauseBefore || 0) }, ...units.slice(1)];
+  }
   const languageKey = language => normalizeLanguageTag(language).split('-')[0];
   const localeScore = (voice, language) => {
     const target = normalizeLanguageTag(language || 'en');
@@ -207,7 +214,11 @@ window.TTS = (() => {
   }
 
   function scheduleNext(callback, durationMs, currentGeneration) {
-    const pauseMs = Math.max(0, Math.min(3500, Number(project?.config.pauseDuration ?? defaultPauseDuration()) * 1000));
+    const userPauseMs = Math.max(0, Math.min(3500, Number(project?.config.pauseDuration ?? defaultPauseDuration()) * 1000));
+    const nextGroup = project?.groups[project.progress.currentGroupIndex];
+    const linePauseMs = nextGroup?.lineBreakBefore && lineJumpBehavior() === 'pause' ? 500 : 0;
+    const paragraphPauseMs = nextGroup?.paragraphBreakBefore && lineJumpBehavior() === 'pause' ? 1200 : 0;
+    const pauseMs = Math.max(userPauseMs, linePauseMs, paragraphPauseMs);
     state = 'between_groups';
     sync();
     timerId = setTimeout(() => {
@@ -245,7 +256,7 @@ window.TTS = (() => {
     project.progress.currentRepeat = project.progress.currentRepeat || 1;
     sync();
     const startedAt = performance.now();
-    const units = prepareSpeechUnits(group.rawText, group.hasTitle, group.hasSubtitle, project.config.language);
+    const units = withLineJumpCue(group, prepareSpeechUnits(group.rawText, group.hasTitle, group.hasSubtitle, project.config.language));
     startKeepAlive();
     for (const unit of units) {
       if (currentGeneration !== generation) throw new Error('Playback canceled.');
@@ -267,7 +278,7 @@ window.TTS = (() => {
 
   async function speakFallback(group, currentGeneration) {
     const language = languageKey(project.config.language);
-    const units = splitFallbackUnits(prepareSpeechUnits(group.rawText, group.hasTitle, group.hasSubtitle, language));
+    const units = splitFallbackUnits(withLineJumpCue(group, prepareSpeechUnits(group.rawText, group.hasTitle, group.hasSubtitle, language)));
     const startedAt = performance.now();
     state = 'playing';
     project.progress.isPlaying = true;

@@ -88,11 +88,11 @@ test('app shell resolves root assets on nested project reloads', async () => {
 
 test('app shell uses the refreshed TTS fallback script version', async () => {
   const html = await fs.readFile(path.join(root, 'index.html'), 'utf8');
-  assert.match(html, /<script src="tts\.js\?v=26"><\/script>/);
+  assert.match(html, /<script src="tts\.js\?v=27"><\/script>/);
     assert.match(html, /<script src="voice-lab\.js\?v=16"><\/script>/);
   assert.match(html, /<script src="ui\.js\?v=37"><\/script>/);
-  assert.match(html, /<script src="app\.js\?v=27"><\/script>/);
-  assert.match(html, /<script src="parser\.js\?v=24"><\/script>/);
+  assert.match(html, /<script src="app\.js\?v=28"><\/script>/);
+  assert.match(html, /<script src="parser\.js\?v=25"><\/script>/);
 });
 
 test('voice selector exposes the online fallback even when no device voice exists', async () => {
