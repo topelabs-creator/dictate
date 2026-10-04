@@ -125,6 +125,8 @@ function createGroups(tokens, wordsPerGroup, structure = []) {
   const lineBreaks = new Set(structure.filter(marker => marker.type === 'lineBreak').map(marker => marker.index));
   const paragraphBreaks = new Set(structure.filter(marker => marker.type === 'paragraphBreak').map(marker => marker.index));
   const boundaries = [...new Set([...lineBreaks, ...paragraphBreaks])].sort((left, right) => left - right);
+  const titleMarkers = new Set(structure.filter(marker => marker.type === 'title').map(marker => marker.index));
+  const subtitleMarkers = new Set(structure.filter(marker => marker.type === 'subtitle').map(marker => marker.index));
   const groups = [];
   let start = 0;
   while (start < tokens.length) {
@@ -132,13 +134,20 @@ function createGroups(tokens, wordsPerGroup, structure = []) {
     const boundary = boundaries.find(index => index > start && index < end);
     if (boundary !== undefined) end = boundary;
     const words = tokens.slice(start, end);
-    const markers = structure.filter(marker => marker.type !== 'paragraphBreak' && marker.type !== 'lineBreak' && marker.index >= start && marker.index < end);
+    let hasTitle = false;
+    let hasSubtitle = false;
+    for (const markerIndex of titleMarkers) {
+      if (markerIndex >= start && markerIndex < end) { hasTitle = true; break; }
+    }
+    for (const markerIndex of subtitleMarkers) {
+      if (markerIndex >= start && markerIndex < end) { hasSubtitle = true; break; }
+    }
     groups.push({
       index: groups.length,
       words,
       rawText: words.join(' '),
-      hasTitle: markers.some(marker => marker.type === 'title'),
-      hasSubtitle: markers.some(marker => marker.type === 'subtitle'),
+      hasTitle,
+      hasSubtitle,
       lineBreakBefore: lineBreaks.has(start),
       paragraphBreakBefore: paragraphBreaks.has(start),
       startTokenIndex: start,

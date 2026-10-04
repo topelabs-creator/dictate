@@ -148,7 +148,7 @@ test('text input supports unlimited words and dynamically displays word count', 
 test('reader rendering keeps fallback navigation and active state efficient', async () => {
   const ui = await fs.readFile(path.join(root, 'ui.js'), 'utf8');
   assert.doesNotMatch(ui, /data-index="0"/);
-  assert.match(ui, /const fallbackIndex = Math\.min\(cursor/);
+  assert.match(ui, /const fallbackIndex = Math\.min\(startIndex/);
   assert.match(ui, /let activeReaderGroup = null/);
   assert.match(ui, /activeReaderGroup\?\.classList\.remove\('active'\)/);
   assert.match(ui, /\.word-group\[data-index="\$\{project\.progress\.currentGroupIndex\}"\]/);
